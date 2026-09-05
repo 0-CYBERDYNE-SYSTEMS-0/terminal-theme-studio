@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Unit tests (no display or PyGObject needed)
+        run: python -m unittest discover -s tests
+
+      - name: Manifest sanity
+        run: |
+          python - <<'EOF'
+          import json
+
+          with open("manifest.json", encoding="utf-8") as fh:
+              m = json.load(fh)
+
+          assert m["schemaVersion"] == 1
+          assert m["id"] == "scrimwiggins.terminal-theme-studio"
+          assert "bar-widget" in m["kinds"]
+          assert m["entryPoints"]["barWidget"] == "BarWidget.qml"
+          print("manifest.json OK")
+          EOF
+
+      - name: Export smoke test
+        run: |
+          python - <<'EOF'
+          import json
+          import tomllib
+
+          from fts import exporters
+          from fts.palette import Palette
+
+          p = Palette.from_dict({})
+          for spec in exporters.FORMATS:
+              out = exporters.render(spec.id, p, "CI")
+              assert out.endswith("\n")
+          tomllib.loads(exporters.render("alacritty", p, "CI"))
+          json.loads(exporters.render("json", p, "CI"))
+          print("renderers OK")
+          EOF
