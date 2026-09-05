@@ -19,7 +19,7 @@ from gi.repository import Adw, GObject, Gtk  # noqa: E402
 
 from .. import foot_config, omarchy, osc, paths  # noqa: E402
 from ..palette import Palette  # noqa: E402
-from .dialogs import ColorTestDialog, SaveThemeDialog  # noqa: E402
+from .dialogs import ColorTestDialog, ExportDialog, SaveThemeDialog  # noqa: E402
 from .imagewell import ImageWell  # noqa: E402
 from .library_panel import LibraryPanel  # noqa: E402
 from .library_panel import LibraryEntry  # noqa: F401  (re-export convenience)
@@ -104,6 +104,14 @@ class FtsWindow(Adw.ApplicationWindow):
         save_btn.set_tooltip_text("Write a named user theme under ~/.config/omarchy/themes")
         save_btn.connect("clicked", self._on_save_theme)
         header.pack_end(save_btn)
+
+        export_btn = Gtk.Button(label="Export…")
+        export_btn.set_tooltip_text(
+            "Save this palette as a theme file for Alacritty, Ghostty, "
+            "Kitty, WezTerm, or any other terminal"
+        )
+        export_btn.connect("clicked", self._on_export)
+        header.pack_end(export_btn)
 
         # ---- panes ------------------------------------------------------
         top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -282,6 +290,14 @@ class FtsWindow(Adw.ApplicationWindow):
             default_name=self._working_name,
             toast=self.toast,
             on_saved=self._on_theme_saved,
+        )
+        dialog.present(self)
+
+    def _on_export(self, button) -> None:
+        dialog = ExportDialog(
+            get_palette=lambda: self._working,
+            default_name=self._working_name,
+            toast=self.toast,
         )
         dialog.present(self)
 
