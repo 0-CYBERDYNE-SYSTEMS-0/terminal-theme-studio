@@ -1,4 +1,4 @@
-"""Foot Theme Studio core (non-GUI) logic.
+"""Terminal Theme Studio core (non-GUI) logic.
 
 Author, preview, and apply terminal palettes to Foot on Omarchy:
 

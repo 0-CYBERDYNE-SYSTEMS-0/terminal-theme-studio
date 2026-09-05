@@ -19,7 +19,7 @@ from gi.repository import Adw, GObject, Gtk  # noqa: E402
 
 from .. import foot_config, omarchy, osc, paths  # noqa: E402
 from ..palette import Palette  # noqa: E402
-from .dialogs import ColorTestDialog, SaveThemeDialog  # noqa: E402
+from .dialogs import ColorTestDialog, ExportDialog, SaveThemeDialog  # noqa: E402
 from .imagewell import ImageWell  # noqa: E402
 from .library_panel import LibraryPanel  # noqa: E402
 from .library_panel import LibraryEntry  # noqa: F401  (re-export convenience)
@@ -47,7 +47,7 @@ class FtsWindow(Adw.ApplicationWindow):
         self._positioned = False
         self._colortest_dialog: ColorTestDialog | None = None
 
-        self.set_title("Foot Theme Studio")
+        self.set_title("Terminal Theme Studio")
         self.set_default_size(1280, 800)  # >= 1200x760
         self.set_size_request(900, 600)  # hard minimum
 
@@ -72,7 +72,7 @@ class FtsWindow(Adw.ApplicationWindow):
 
         # ---- header bar ------------------------------------------------
         self._wtitle = Adw.WindowTitle(
-            title=self._working_name, subtitle="Foot Theme Studio"
+            title=self._working_name, subtitle="Terminal Theme Studio"
         )
         header = Adw.HeaderBar()
         header.set_title_widget(self._wtitle)
@@ -105,6 +105,14 @@ class FtsWindow(Adw.ApplicationWindow):
         save_btn.connect("clicked", self._on_save_theme)
         header.pack_end(save_btn)
 
+        export_btn = Gtk.Button(label="Export…")
+        export_btn.set_tooltip_text(
+            "Save this palette as a theme file for Alacritty, Ghostty, "
+            "Kitty, WezTerm, or any other terminal"
+        )
+        export_btn.connect("clicked", self._on_export)
+        header.pack_end(export_btn)
+
         # ---- panes ------------------------------------------------------
         top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         top_box.set_margin_top(10)
@@ -115,13 +123,14 @@ class FtsWindow(Adw.ApplicationWindow):
         top_box.append(self._imagewell)
 
         top_scroll = Gtk.ScrolledWindow()
-        top_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        # swatches wrap to the pane width; never scroll horizontally
+        top_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         top_scroll.set_child(top_box)
 
         self._vpaned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
         self._vpaned.set_start_child(top_scroll)
         self._vpaned.set_end_child(self._preview)
-        self._vpaned.set_shrink_start_child(False)
+        self._vpaned.set_shrink_start_child(True)
         self._vpaned.set_shrink_end_child(False)
         self._vpaned.set_position(300)  # refined on map; preview gets ~60%
 
@@ -129,7 +138,7 @@ class FtsWindow(Adw.ApplicationWindow):
         self._hpaned.set_start_child(self._library)
         self._hpaned.set_end_child(self._vpaned)
         self._hpaned.set_shrink_start_child(False)
-        self._hpaned.set_shrink_end_child(False)
+        self._hpaned.set_shrink_end_child(True)
         self._hpaned.set_position(280)  # refined on map
 
         self._toasts = Adw.ToastOverlay()
@@ -189,7 +198,7 @@ class FtsWindow(Adw.ApplicationWindow):
                 return omarchy.load_colors_toml(colors), "current theme"
             except Exception as exc:
                 print(
-                    f"foot-theme-studio: could not load current theme: {exc}",
+                    f"terminal-theme-studio: could not load current theme: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -214,7 +223,7 @@ class FtsWindow(Adw.ApplicationWindow):
             count = foot_config.push_override_live(self._working)
         except Exception as exc:
             print(
-                f"foot-theme-studio: apply failed: {exc}", file=sys.stderr, flush=True
+                f"terminal-theme-studio: apply failed: {exc}", file=sys.stderr, flush=True
             )
             self.toast(f"Apply failed: {exc}")
             return
@@ -225,7 +234,7 @@ class FtsWindow(Adw.ApplicationWindow):
             foot_config.clear_palette_override()
         except Exception as exc:
             print(
-                f"foot-theme-studio: clearing override failed: {exc}",
+                f"terminal-theme-studio: clearing override failed: {exc}",
                 file=sys.stderr,
                 flush=True,
             )
@@ -241,7 +250,7 @@ class FtsWindow(Adw.ApplicationWindow):
                 name = "current theme"
             except Exception as exc:
                 print(
-                    f"foot-theme-studio: could not load current theme: {exc}",
+                    f"terminal-theme-studio: could not load current theme: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -250,7 +259,7 @@ class FtsWindow(Adw.ApplicationWindow):
                 pushed = osc.push_to_running_foot(palette)
             except Exception as exc:
                 print(
-                    f"foot-theme-studio: OSC push failed: {exc}",
+                    f"terminal-theme-studio: OSC push failed: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -282,6 +291,14 @@ class FtsWindow(Adw.ApplicationWindow):
             default_name=self._working_name,
             toast=self.toast,
             on_saved=self._on_theme_saved,
+        )
+        dialog.present(self)
+
+    def _on_export(self, button) -> None:
+        dialog = ExportDialog(
+            get_palette=lambda: self._working,
+            default_name=self._working_name,
+            toast=self.toast,
         )
         dialog.present(self)
 

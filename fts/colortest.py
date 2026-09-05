@@ -48,7 +48,7 @@ def _ansi_palette(p: Palette) -> list[tuple[int, int, int]]:
 def full_test_text(p: Palette) -> str:
     """The whole battery as plain text with escapes (for in-app preview)."""
     lines: list[str] = []
-    lines.append("Foot Theme Studio color test")
+    lines.append("Terminal Theme Studio color test")
     lines.append(f"background {p.background}  foreground {p.foreground}")
     lines.append("")
 
@@ -112,7 +112,7 @@ def script_text(p: Palette) -> str:
 
     out: list[str] = []
     out.append("#!/bin/sh")
-    out.append("# Foot Theme Studio color test -- generated, POSIX sh, no deps.")
+    out.append("# Terminal Theme Studio color test -- generated, POSIX sh, no deps.")
     out.append("# 16 ANSI slots are printed with truecolor values from the")
     out.append(f"# working palette (background {p.background}, foreground {p.foreground}).")
     out.append("")

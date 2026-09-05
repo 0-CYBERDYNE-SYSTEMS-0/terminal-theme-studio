@@ -21,10 +21,10 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gtk  # noqa: E402
 
-from .. import colortest, omarchy  # noqa: E402
+from .. import colortest, exporters, omarchy  # noqa: E402
 from .colortest_view import ColorTestView  # noqa: E402
 
-__all__ = ["ColorTestDialog", "SaveThemeDialog"]
+__all__ = ["ColorTestDialog", "ExportDialog", "SaveThemeDialog"]
 
 
 class ColorTestDialog(Adw.Dialog):
@@ -76,7 +76,7 @@ class ColorTestDialog(Adw.Dialog):
         palette = self._get_palette()
         foot = shutil.which("foot")
         if foot:
-            cmd = [foot, "--title=Foot Theme Studio — Color Test", "sh", ""]
+            cmd = [foot, "--title=Terminal Theme Studio — Color Test", "sh", ""]
         else:
             xdg = shutil.which("xdg-terminal-exec")
             if not xdg:
@@ -98,7 +98,7 @@ class ColorTestDialog(Adw.Dialog):
             os.chmod(name, 0o700)
         except OSError as exc:
             self._toast(f"Could not write color test script: {exc}")
-            print(f"foot-theme-studio: {exc}", file=sys.stderr, flush=True)
+            print(f"terminal-theme-studio: {exc}", file=sys.stderr, flush=True)
             return
         self._tmpfiles.append(Path(name))
         cmd[-1] = name
@@ -113,7 +113,7 @@ class ColorTestDialog(Adw.Dialog):
             )
         except OSError as exc:
             self._toast(f"Could not launch terminal: {exc}")
-            print(f"foot-theme-studio: {exc}", file=sys.stderr, flush=True)
+            print(f"terminal-theme-studio: {exc}", file=sys.stderr, flush=True)
             return
         self._toast("Color test running in a new terminal")
 
@@ -226,7 +226,7 @@ class SaveThemeDialog(Adw.Dialog):
         except Exception as exc:
             self._alert("Could not save theme", str(exc))
             print(
-                f"foot-theme-studio: save_user_theme failed: {exc}",
+                f"terminal-theme-studio: save_user_theme failed: {exc}",
                 file=sys.stderr,
                 flush=True,
             )
@@ -243,7 +243,7 @@ class SaveThemeDialog(Adw.Dialog):
                     f"omarchy theme set failed: {exc}",
                 )
                 print(
-                    f"foot-theme-studio: apply_full_theme failed: {exc}",
+                    f"terminal-theme-studio: apply_full_theme failed: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -257,4 +257,139 @@ class SaveThemeDialog(Adw.Dialog):
 
         if self._on_saved is not None:
             self._on_saved(slug, path)
+        self.close()
+
+
+class ExportDialog(Adw.Dialog):
+    """Save the working palette as a theme file for another terminal.
+
+    Export is file-based and user-chosen only: the studio renders the
+    palette and writes it wherever the save dialog points; it never
+    edits another tool's config or Omarchy-managed state.
+    """
+
+    def __init__(self, get_palette, default_name, toast, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._get_palette = get_palette
+        self._default_name = default_name or "theme"
+        self._toast = toast
+
+        self.set_title("Export")
+        self.set_content_width(520)
+
+        export_btn = Gtk.Button(label="Export…")
+        export_btn.add_css_class("suggested-action")
+        export_btn.connect("clicked", self._on_export)
+
+        header = Adw.HeaderBar()
+        header.pack_end(export_btn)
+        header.set_title_widget(
+            Adw.WindowTitle(
+                title="Export theme",
+                subtitle="save the palette for any terminal",
+            )
+        )
+
+        group = Adw.PreferencesGroup(
+            description="Renders the working palette; you choose where the file goes."
+        )
+        self._first_check: Gtk.CheckButton | None = None
+        self._checks: dict[str, Gtk.CheckButton] = {}
+        for spec in exporters.FORMATS:
+            check = Gtk.CheckButton()
+            if self._first_check is None:
+                self._first_check = check
+                check.set_active(True)
+            else:
+                check.set_group(self._first_check)
+            self._checks[spec.id] = check
+
+            row = Adw.ActionRow(
+                title=spec.label,
+                subtitle=exporters.suggested_basename(spec.id, self._default_name),
+            )
+            row.add_prefix(check)
+            row.set_activatable_widget(check)
+            check.connect("toggled", self._on_toggled, spec.id)
+            group.add(row)
+
+        self._hint = Gtk.Label(xalign=0.0, wrap=True)
+        self._hint.add_css_class("caption")
+        self._hint.add_css_class("dim-label")
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(24)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        content.set_valign(Gtk.Align.START)
+        content.append(group)
+        content.append(self._hint)
+
+        toolbar = Adw.ToolbarView()
+        toolbar.add_top_bar(header)
+        toolbar.set_content(content)
+        self.set_child(toolbar)
+
+        self._update_hint()
+
+    # ------------------------------------------------------------------
+    # internals
+    # ------------------------------------------------------------------
+
+    def _selected(self) -> str:
+        for fmt_id, check in self._checks.items():
+            if check.get_active():
+                return fmt_id
+        return exporters.FORMATS[0].id
+
+    def _on_toggled(self, check, fmt_id: str) -> None:
+        if check.get_active():
+            self._update_hint()
+
+    def _update_hint(self) -> None:
+        self._hint.set_text(
+            "Everything a terminal needs is 16 ANSI colors plus cursor and "
+            "selection — each format is the same palette in its own shape."
+        )
+
+    def _alert(self, heading: str, body: str) -> None:
+        alert = Adw.AlertDialog(heading=heading, body=body)
+        alert.add_response("close", "OK")
+        alert.set_close_response("close")
+        alert.present(self)
+
+    def _on_export(self, button) -> None:
+        fmt_id = self._selected()
+        palette = self._get_palette()
+        title = self._default_name
+
+        fd = Gtk.FileDialog()
+        fd.set_initial_name(exporters.suggested_basename(fmt_id, title))
+        root = self.get_root()
+        parent = root if isinstance(root, Gtk.Window) else None
+        fd.save(parent, None, self._on_save_finished, fmt_id, palette, title)
+
+    def _on_save_finished(self, fd, result, fmt_id, palette, title) -> None:
+        try:
+            file = fd.save_finish(result)
+        except Exception:
+            return  # dialog cancelled
+        if file is None:
+            return
+        path = file.get_path()
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(exporters.render(fmt_id, palette, title))
+        except OSError as exc:
+            self._alert("Could not export", str(exc))
+            print(
+                f"terminal-theme-studio: export to {path} failed: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return
+        self._toast(f"Exported {path}")
         self.close()

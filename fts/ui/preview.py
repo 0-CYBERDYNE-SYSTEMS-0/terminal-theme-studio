@@ -117,7 +117,7 @@ class TerminalPreview(Gtk.DrawingArea):
         line(
             [
                 (_user_at_host() + " ", p.regular2),
-                ("~/Projects/foot-theme-studio ", p.regular4),
+                ("~/Projects/terminal-theme-studio ", p.regular4),
                 ("git:(main) ", p.regular3),
                 ("$ ", p.foreground),
             ]

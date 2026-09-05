@@ -27,11 +27,11 @@ __all__ = [
     "push_override_live",
 ]
 
-MARK_BEGIN = "# >>> foot-theme-studio >>>"
-MARK_END = "# <<< foot-theme-studio <<<"
+MARK_BEGIN = "# >>> terminal-theme-studio >>>"
+MARK_END = "# <<< terminal-theme-studio <<<"
 
 _HEADER = (
-    "# ~/.config/foot/palette.ini -- owned by Foot Theme Studio.\n"
+    "# ~/.config/foot/palette.ini -- owned by Terminal Theme Studio.\n"
     "# Regenerated on every apply; hand-edits will be lost.\n"
     "# Remove via the studio (or delete this file and strip the marked block\n"
     "# in foot.ini) to fall back to the Omarchy theme.\n"

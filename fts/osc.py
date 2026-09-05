@@ -130,7 +130,7 @@ def push_to_running_foot(p: Palette) -> int:
             foot_pids = _foot_pids_pgrep()
             find_children = _children_pgrep
     except Exception as exc:  # /proc unavailable -> pgrep fallback
-        warnings.warn(f"foot-theme-studio: /proc scan failed ({exc}); using pgrep")
+        warnings.warn(f"terminal-theme-studio: /proc scan failed ({exc}); using pgrep")
         foot_pids = _foot_pids_pgrep()
         find_children = _children_pgrep
 
@@ -139,13 +139,13 @@ def push_to_running_foot(p: Palette) -> int:
         try:
             children = find_children(foot_pid)
         except Exception as exc:
-            warnings.warn(f"foot-theme-studio: cannot list children of {foot_pid}: {exc}")
+            warnings.warn(f"terminal-theme-studio: cannot list children of {foot_pid}: {exc}")
             continue
         for child in children:
             try:
                 tty = os.readlink(f"/proc/{child}/fd/1")
             except OSError as exc:
-                warnings.warn(f"foot-theme-studio: cannot read fd/1 of {child}: {exc}")
+                warnings.warn(f"terminal-theme-studio: cannot read fd/1 of {child}: {exc}")
                 continue
             if not tty.startswith("/dev/pts/"):
                 continue
@@ -157,5 +157,5 @@ def push_to_running_foot(p: Palette) -> int:
                     os.close(fd)
                 written += 1
             except OSError as exc:
-                warnings.warn(f"foot-theme-studio: cannot write to {tty}: {exc}")
+                warnings.warn(f"terminal-theme-studio: cannot write to {tty}: {exc}")
     return written

@@ -15,7 +15,7 @@ from .ui.window import FtsWindow  # noqa: E402
 
 __all__ = ["FtsApplication", "main"]
 
-APP_ID = "com.omarchy.FootThemeStudio"
+APP_ID = "com.omarchy.TerminalThemeStudio"
 
 
 class FtsApplication(Adw.Application):
