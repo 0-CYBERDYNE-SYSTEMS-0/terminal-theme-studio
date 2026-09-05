@@ -1,4 +1,4 @@
-# Foot Theme Studio
+# Terminal Theme Studio
 
 A native GTK4/libadwaita app for authoring, previewing, and applying
 terminal palettes to **Foot** on Omarchy.
@@ -36,7 +36,7 @@ Give the user end-to-end aesthetic control of Foot:
 ## Location
 
 ```
-~/Projects/foot-theme-studio/
+~/Projects/terminal-theme-studio/
 ```
 
 User-safe outputs only:
@@ -226,12 +226,12 @@ Omarchy's OS packages are curated; third-party apps ship as **shell
 plugins** installed from git.  The repo root doubles as a plugin folder
 (passes `omarchy plugin validate`):
 
-- `manifest.json` — schemaVersion 1, id `scrimwiggins.foot-theme-studio`,
+- `manifest.json` — schemaVersion 1, id `scrimwiggins.terminal-theme-studio`,
   `kinds: ["bar-widget"]`, `entryPoints.barWidget: "BarWidget.qml"`,
   `barWidget.defaultSection: "right"`.
 - `BarWidget.qml` — one `WidgetButton` (Nerd Font paint-brush glyph) that
-  `Quickshell.execDetached`es `<sourceDir>/bin/foot-theme-studio`,
+  `Quickshell.execDetached`es `<sourceDir>/bin/terminal-theme-studio`,
   resolving the directory from the registry-injected
   `manifest.__sourceDir` (PATH fallback).
 - Install: `omarchy plugin add <repo-url>` then
-  `omarchy plugin enable scrimwiggins.foot-theme-studio right`.
+  `omarchy plugin enable scrimwiggins.terminal-theme-studio right`.

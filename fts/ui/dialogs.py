@@ -76,7 +76,7 @@ class ColorTestDialog(Adw.Dialog):
         palette = self._get_palette()
         foot = shutil.which("foot")
         if foot:
-            cmd = [foot, "--title=Foot Theme Studio — Color Test", "sh", ""]
+            cmd = [foot, "--title=Terminal Theme Studio — Color Test", "sh", ""]
         else:
             xdg = shutil.which("xdg-terminal-exec")
             if not xdg:
@@ -98,7 +98,7 @@ class ColorTestDialog(Adw.Dialog):
             os.chmod(name, 0o700)
         except OSError as exc:
             self._toast(f"Could not write color test script: {exc}")
-            print(f"foot-theme-studio: {exc}", file=sys.stderr, flush=True)
+            print(f"terminal-theme-studio: {exc}", file=sys.stderr, flush=True)
             return
         self._tmpfiles.append(Path(name))
         cmd[-1] = name
@@ -113,7 +113,7 @@ class ColorTestDialog(Adw.Dialog):
             )
         except OSError as exc:
             self._toast(f"Could not launch terminal: {exc}")
-            print(f"foot-theme-studio: {exc}", file=sys.stderr, flush=True)
+            print(f"terminal-theme-studio: {exc}", file=sys.stderr, flush=True)
             return
         self._toast("Color test running in a new terminal")
 
@@ -226,7 +226,7 @@ class SaveThemeDialog(Adw.Dialog):
         except Exception as exc:
             self._alert("Could not save theme", str(exc))
             print(
-                f"foot-theme-studio: save_user_theme failed: {exc}",
+                f"terminal-theme-studio: save_user_theme failed: {exc}",
                 file=sys.stderr,
                 flush=True,
             )
@@ -243,7 +243,7 @@ class SaveThemeDialog(Adw.Dialog):
                     f"omarchy theme set failed: {exc}",
                 )
                 print(
-                    f"foot-theme-studio: apply_full_theme failed: {exc}",
+                    f"terminal-theme-studio: apply_full_theme failed: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -386,7 +386,7 @@ class ExportDialog(Adw.Dialog):
         except OSError as exc:
             self._alert("Could not export", str(exc))
             print(
-                f"foot-theme-studio: export to {path} failed: {exc}",
+                f"terminal-theme-studio: export to {path} failed: {exc}",
                 file=sys.stderr,
                 flush=True,
             )

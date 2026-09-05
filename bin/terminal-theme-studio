@@ -1,5 +1,5 @@
 #!/bin/sh
-# Foot Theme Studio launcher: runs the GTK UI from this checkout,
+# Terminal Theme Studio launcher: runs the GTK UI from this checkout,
 # from any working directory.
 set -e
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

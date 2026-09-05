@@ -1,4 +1,4 @@
-"""Path indirection for Foot Theme Studio.
+"""Path indirection for Terminal Theme Studio.
 
 All user-visible locations funnel through here so tests can redirect the
 world with ``FOOT_THEME_STUDIO_HOME`` (and ``OMARCHY_PATH`` for the system

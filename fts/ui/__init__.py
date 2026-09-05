@@ -1,4 +1,4 @@
-"""GTK4/libadwaita UI for Foot Theme Studio.
+"""GTK4/libadwaita UI for Terminal Theme Studio.
 
 Panels:
 
@@ -10,7 +10,7 @@ Panels:
 - :mod:`fts.ui.dialogs`        -- save-as-theme + color test dialogs
 - :mod:`fts.ui.window`         -- FtsWindow, owns the working palette
 
-Launch with ``python3 -m fts.main`` or the ``bin/foot-theme-studio`` shim.
+Launch with ``python3 -m fts.main`` or the ``bin/terminal-theme-studio`` shim.
 """
 
 from __future__ import annotations

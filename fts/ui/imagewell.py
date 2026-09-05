@@ -203,7 +203,7 @@ class ImageWell(Gtk.Box):
             return
         except Exception as exc:  # corrupt / unreadable file
             self._toast(f"Could not load image: {exc}")
-            print(f"foot-theme-studio: image load failed: {exc}", flush=True)
+            print(f"terminal-theme-studio: image load failed: {exc}", flush=True)
             return
 
         try:
@@ -211,7 +211,7 @@ class ImageWell(Gtk.Box):
             palette = quantize.palette_from_colors(colors)
         except Exception as exc:
             self._toast("Palette extraction failed")
-            print(f"foot-theme-studio: extraction failed: {exc}", flush=True)
+            print(f"terminal-theme-studio: extraction failed: {exc}", flush=True)
             return
 
         try:

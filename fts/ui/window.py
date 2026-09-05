@@ -47,7 +47,7 @@ class FtsWindow(Adw.ApplicationWindow):
         self._positioned = False
         self._colortest_dialog: ColorTestDialog | None = None
 
-        self.set_title("Foot Theme Studio")
+        self.set_title("Terminal Theme Studio")
         self.set_default_size(1280, 800)  # >= 1200x760
         self.set_size_request(900, 600)  # hard minimum
 
@@ -72,7 +72,7 @@ class FtsWindow(Adw.ApplicationWindow):
 
         # ---- header bar ------------------------------------------------
         self._wtitle = Adw.WindowTitle(
-            title=self._working_name, subtitle="Foot Theme Studio"
+            title=self._working_name, subtitle="Terminal Theme Studio"
         )
         header = Adw.HeaderBar()
         header.set_title_widget(self._wtitle)
@@ -123,13 +123,14 @@ class FtsWindow(Adw.ApplicationWindow):
         top_box.append(self._imagewell)
 
         top_scroll = Gtk.ScrolledWindow()
-        top_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        # swatches wrap to the pane width; never scroll horizontally
+        top_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         top_scroll.set_child(top_box)
 
         self._vpaned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
         self._vpaned.set_start_child(top_scroll)
         self._vpaned.set_end_child(self._preview)
-        self._vpaned.set_shrink_start_child(False)
+        self._vpaned.set_shrink_start_child(True)
         self._vpaned.set_shrink_end_child(False)
         self._vpaned.set_position(300)  # refined on map; preview gets ~60%
 
@@ -137,7 +138,7 @@ class FtsWindow(Adw.ApplicationWindow):
         self._hpaned.set_start_child(self._library)
         self._hpaned.set_end_child(self._vpaned)
         self._hpaned.set_shrink_start_child(False)
-        self._hpaned.set_shrink_end_child(False)
+        self._hpaned.set_shrink_end_child(True)
         self._hpaned.set_position(280)  # refined on map
 
         self._toasts = Adw.ToastOverlay()
@@ -197,7 +198,7 @@ class FtsWindow(Adw.ApplicationWindow):
                 return omarchy.load_colors_toml(colors), "current theme"
             except Exception as exc:
                 print(
-                    f"foot-theme-studio: could not load current theme: {exc}",
+                    f"terminal-theme-studio: could not load current theme: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -222,7 +223,7 @@ class FtsWindow(Adw.ApplicationWindow):
             count = foot_config.push_override_live(self._working)
         except Exception as exc:
             print(
-                f"foot-theme-studio: apply failed: {exc}", file=sys.stderr, flush=True
+                f"terminal-theme-studio: apply failed: {exc}", file=sys.stderr, flush=True
             )
             self.toast(f"Apply failed: {exc}")
             return
@@ -233,7 +234,7 @@ class FtsWindow(Adw.ApplicationWindow):
             foot_config.clear_palette_override()
         except Exception as exc:
             print(
-                f"foot-theme-studio: clearing override failed: {exc}",
+                f"terminal-theme-studio: clearing override failed: {exc}",
                 file=sys.stderr,
                 flush=True,
             )
@@ -249,7 +250,7 @@ class FtsWindow(Adw.ApplicationWindow):
                 name = "current theme"
             except Exception as exc:
                 print(
-                    f"foot-theme-studio: could not load current theme: {exc}",
+                    f"terminal-theme-studio: could not load current theme: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -258,7 +259,7 @@ class FtsWindow(Adw.ApplicationWindow):
                 pushed = osc.push_to_running_foot(palette)
             except Exception as exc:
                 print(
-                    f"foot-theme-studio: OSC push failed: {exc}",
+                    f"terminal-theme-studio: OSC push failed: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )

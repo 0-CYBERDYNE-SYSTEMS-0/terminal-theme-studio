@@ -56,7 +56,7 @@ class TestCommonProperties(unittest.TestCase):
             if spec.id == "json":
                 self.assertEqual(json.loads(text)["name"], "Test Theme")
             else:
-                self.assertIn("Foot Theme Studio", text)
+                self.assertIn("Terminal Theme Studio", text)
 
     def test_ansi_mapping_all_16_indices(self):
         """ghostty palette lines cover indices 0-15: regular0-7 then bright0-7."""
