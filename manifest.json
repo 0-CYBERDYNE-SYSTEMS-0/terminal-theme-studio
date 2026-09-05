@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "scrimwiggins.foot-theme-studio",
+  "name": "Theme Studio",
+  "version": "1.1.0",
+  "author": "scrimwiggins",
+  "license": "MIT",
+  "description": "Foot Theme Studio in the bar: author a terminal palette and export it to Foot, Alacritty, Ghostty, Kitty, WezTerm, or save it as an Omarchy theme.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Theme Studio",
+    "description": "One bar icon: opens Foot Theme Studio, the GTK palette studio for Foot and every other terminal.",
+    "category": "Theming",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}

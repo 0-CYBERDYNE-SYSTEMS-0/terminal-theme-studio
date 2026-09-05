@@ -22,6 +22,8 @@ fts/
   library.py      vendored community palettes + local Omarchy themes, with search
   quantize.py     median-cut image extraction (weighted, pure python) + role mapping
   colortest.py    ANSI/256/truecolor test text + self-contained POSIX sh script
+  exporters.py    pure Palette -> theme-file renderers (foot, alacritty, ghostty,
+                  kitty, wezterm, json) for the Export… button
   main.py         Adw.Application entry point (com.omarchy.FootThemeStudio)
   ui/             GTK4/libadwaita UI (window, library, swatches, image well,
                   terminal preview, color test view + dialogs)
@@ -35,7 +37,7 @@ bin/
 ## Run
 
 ```sh
-python3 -m unittest discover -s tests   # 83 tests, no display needed
+python3 -m unittest discover -s tests   # 101 tests, no display needed
 bin/foot-theme-studio                   # GTK UI (or: python3 -m fts.main)
 ```
 
@@ -55,6 +57,27 @@ the core modules above import without `gi`/display.
   set (mode, accent, selection, muted, purple/bright_purple aliases,
   derived dark/darker/lighter backgrounds, orange, brown …) and run
   `omarchy-theme-set <slug>`.
+- **Export… (any terminal):** render the working palette to a theme file
+  and save it wherever you choose — `foot.ini`, `alacritty.toml`,
+  `ghostty.conf`, `kitty.conf`, a WezTerm colorscheme `.lua`, or a raw
+  `.json` of all 21 roles. File-based only: nothing is ever written into
+  another tool's config or Omarchy-managed state. Every format is the
+  same 21-role palette in that terminal's shape (cursor text =
+  background, ANSI = regular0–7/bright0–7), so exported files match what
+  Omarchy itself generates. See SPEC.md for the full mapping.
+
+## Install as an Omarchy shell plugin
+
+The repo doubles as an [Omarchy shell plugin](SPEC.md#distribution-as-an-omarchy-shell-plugin): a
+single bar icon (right section) that opens the studio.
+
+```sh
+omarchy plugin add <this-repo-git-url>
+omarchy plugin enable scrimwiggins.foot-theme-studio right
+```
+
+Remove with `omarchy plugin remove scrimwiggins.foot-theme-studio`. The
+plugin folder passes `omarchy plugin validate` on its own.
 
 Tests never touch real user config: they redirect everything with
 `FOOT_THEME_STUDIO_HOME` / `OMARCHY_PATH` to a temp dir, and

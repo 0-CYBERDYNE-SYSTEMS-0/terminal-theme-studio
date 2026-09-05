@@ -174,8 +174,64 @@ regular1=f38ba8
 
 ## Later (not v1)
 
-- Ghostty / Alacritty / Kitty live apply
+- Per-terminal **live apply** beyond Foot (OSC/reload per emulator)
 - Wallpaper set from the source image
 - Contrast / WCAG warnings
-- Import/export raw `foot.ini`
+- Import (round-trip) of foreign theme files
 - Plugin or `omarchy` CLI subcommand
+
+## Export to any terminal (v1.1 spec)
+
+The working palette is terminal-agnostic (21 roles ≙ ANSI 0–15 + five
+semantic roles).  Every terminal theme format is therefore a pure text
+render over the same `Palette`.  Export is file-based: the studio
+**renders and saves a file wherever the user chooses**; pointing a
+terminal at it stays the user's call.  The studio never writes into
+another tool's config or into Omarchy-managed state
+(`~/.local/state/omarchy/…` would be clobbered by the next
+`omarchy theme set`).
+
+### Module `fts/exporters.py`
+
+Pure functions `render(palette, title) -> str` (trailing newline,
+deterministic, no I/O, no `gi` import) plus an ordered registry:
+
+| id | file | shape (source of truth) |
+| --- | --- | --- |
+| `foot` | `<name>.ini` | `[colors-dark]`, hex WITHOUT `#`, key set of Omarchy's `foot.ini.tpl` |
+| `alacritty` | `<name>.toml` | `[colors.primary]`, `[colors.cursor]` + `[colors.vi_mode_cursor]` (text = background), `[colors.selection]`, `[colors.normal]`, `[colors.bright]` — same shape Omarchy generates |
+| `ghostty` | `<name>.conf` | `background`, `foreground`, `cursor-color`, `selection-background/-foreground`, `palette = 0…15` — same shape Omarchy generates |
+| `kitty` | `<name>.conf` | `foreground`, `background`, `cursor`, `cursor_text_color` (= background), `selection_foreground/background`, `color0…15` |
+| `wezterm` | `<name>.lua` | WezTerm color-scheme table (`foreground`, `background`, `cursor_bg/fg/border`, `selection_fg/bg`, `ansi[8]`, `brights[8]`), `return`ed so it can be `require`d or pasted into `config.color_schemes` |
+| `json` | `<name>.json` | all 21 roles flat, plus `"name"` |
+
+Role mapping (matches the Omarchy pipeline everywhere): cursor block =
+`cursor`, cursor text = `background`; selection = `selection_bg` /
+`selection_fg`; ANSI = `regular0–7`, `bright0–7`.  Hex conventions per
+format: foot bare, all others `#rrggbb`.
+
+### UI `ExportDialog` (`fts/ui/dialogs.py`)
+
+- Checkable `Adw.ActionRow` per format (foot preselected), label +
+  suggested filename.
+- **Export…** (suggested-action) → `Gtk.FileDialog.save` with suggested
+  basename `<slug>.<ext>`; write only to the chosen path; toast on
+  success, `Adw.AlertDialog` on failure; cancelled dialog = no-op.
+- Header button **Export…** in `FtsWindow`, packed next to
+  "Save as Omarchy Theme…".
+
+### Distribution as an Omarchy shell plugin
+
+Omarchy's OS packages are curated; third-party apps ship as **shell
+plugins** installed from git.  The repo root doubles as a plugin folder
+(passes `omarchy plugin validate`):
+
+- `manifest.json` — schemaVersion 1, id `scrimwiggins.foot-theme-studio`,
+  `kinds: ["bar-widget"]`, `entryPoints.barWidget: "BarWidget.qml"`,
+  `barWidget.defaultSection: "right"`.
+- `BarWidget.qml` — one `WidgetButton` (Nerd Font paint-brush glyph) that
+  `Quickshell.execDetached`es `<sourceDir>/bin/foot-theme-studio`,
+  resolving the directory from the registry-injected
+  `manifest.__sourceDir` (PATH fallback).
+- Install: `omarchy plugin add <repo-url>` then
+  `omarchy plugin enable scrimwiggins.foot-theme-studio right`.
