@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "scrimwiggins.terminal-theme-studio",
   "name": "Terminal Theme Studio",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "scrimwiggins",
   "license": "MIT",
-  "description": "Terminal Theme Studio in the bar: author a terminal palette and export it to Foot, Alacritty, Ghostty, Kitty, WezTerm, or save it as an Omarchy theme.",
+  "description": "Terminal Theme Studio in the bar: author a terminal palette, export it to Foot, Alacritty, Ghostty, Kitty, WezTerm, save it as an Omarchy theme, and generate matching AI wallpapers.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Terminal Theme Studio",
-    "description": "One bar icon: opens Terminal Theme Studio, the GTK palette studio for Foot and every other terminal.",
+    "description": "One bar icon: opens Terminal Theme Studio, the GTK palette studio for Foot, every other terminal, and Omarchy wallpaper generation.",
     "category": "Theming",
     "defaultSection": "right",
     "allowMultiple": false

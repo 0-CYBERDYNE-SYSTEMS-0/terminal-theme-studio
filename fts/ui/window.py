@@ -25,6 +25,7 @@ from .library_panel import LibraryPanel  # noqa: E402
 from .library_panel import LibraryEntry  # noqa: F401  (re-export convenience)
 from .preview import TerminalPreview  # noqa: E402
 from .swatches import SwatchPanel  # noqa: E402
+from .wallpaper_dialog import WallpaperDialog  # noqa: E402
 
 __all__ = ["FtsWindow"]
 
@@ -112,6 +113,14 @@ class FtsWindow(Adw.ApplicationWindow):
         )
         export_btn.connect("clicked", self._on_export)
         header.pack_end(export_btn)
+
+        wallpapers_btn = Gtk.Button(label="Wallpapers…")
+        wallpapers_btn.set_tooltip_text(
+            "Generate matching desktop wallpapers (Gemini Nano Banana or "
+            "the local ComfyUI) and set one the Omarchy way"
+        )
+        wallpapers_btn.connect("clicked", self._on_wallpapers)
+        header.pack_end(wallpapers_btn)
 
         # ---- panes ------------------------------------------------------
         top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -299,6 +308,16 @@ class FtsWindow(Adw.ApplicationWindow):
             get_palette=lambda: self._working,
             default_name=self._working_name,
             toast=self.toast,
+        )
+        dialog.present(self)
+
+    def _on_wallpapers(self, button) -> None:
+        dialog = WallpaperDialog(
+            get_palette=lambda: self._working,
+            default_name=self._working_name,
+            toast=self.toast,
+            source_path=self._imagewell.source_path,
+            on_theme_created=self._on_theme_saved,
         )
         dialog.present(self)
 

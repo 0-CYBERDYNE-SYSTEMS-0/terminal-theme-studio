@@ -25,6 +25,12 @@ __all__ = [
     "save_user_theme",
     "apply_full_theme",
     "list_local_themes",
+    "current_theme_name",
+    "theme_backgrounds_dir",
+    "user_backgrounds_dir",
+    "save_wallpaper",
+    "set_wallpaper",
+    "current_wallpaper",
 ]
 
 
@@ -409,6 +415,106 @@ def apply_full_theme(slug: str) -> None:
             f"omarchy-theme-set {name!r} failed "
             f"(exit {proc.returncode}): {proc.stderr.strip()}"
         )
+
+
+# --------------------------------------------------------------------------
+# wallpapers (Omarchy background conventions)
+# --------------------------------------------------------------------------
+
+def current_theme_name() -> str | None:
+    """The active theme's name from the omarchy state dir, or None.
+
+    Mirrors what omarchy-theme-set writes to
+    ``~/.local/state/omarchy/current/theme.name``.
+    """
+    try:
+        name = paths.current_theme_name().read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return name or None
+
+
+def theme_backgrounds_dir(slug: str) -> Path:
+    """~/.config/omarchy/themes/<slug>/backgrounds (theme-shipped wallpapers)."""
+    return paths.omarchy_user_themes() / normalize_slug(slug) / "backgrounds"
+
+
+def user_backgrounds_dir(slug: str) -> Path:
+    """~/.config/omarchy/backgrounds/<slug> (per-theme user wallpapers).
+
+    omarchy-theme-set merges this directory with the theme's own
+    backgrounds/ when it picks the next wallpaper, so generated images
+    land in the current theme's rotation without touching the theme.
+    """
+    return paths.user_backgrounds(normalize_slug(slug))
+
+
+def save_wallpaper(
+    data: bytes, slug: str, stem: str, ext: str, *, into_theme: bool = False
+) -> Path:
+    """Write a wallpaper into an Omarchy backgrounds directory.
+
+    Files are named ``<n>-<stem><ext>`` following the numbering
+    convention Omarchy's own theme backgrounds use, with ``n`` one past
+    the highest existing number in the directory.  Defaults to the
+    per-theme *user* backgrounds folder (``into_theme=False``); the
+    write is atomic like every other studio write.
+    """
+    name = normalize_slug(slug)
+    directory = theme_backgrounds_dir(name) if into_theme else user_backgrounds_dir(name)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    highest = 0
+    for existing in directory.iterdir():
+        match = re.match(r"^(\d+)-", existing.name)
+        if match:
+            highest = max(highest, int(match.group(1)))
+
+    target = directory / f"{highest + 1}-{stem}{ext}"
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(directory), prefix=f".{target.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp_name, target)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+    return target
+
+
+def set_wallpaper(path) -> None:
+    """Set the desktop wallpaper the Omarchy way (omarchy-theme-bg-set).
+
+    The script re-points the ``~/.local/state/omarchy/current/background``
+    symlink and tells the running shell to swap the wallpaper live.
+    Raises RuntimeError with the command's stderr when it exits nonzero.
+    """
+    image = Path(path).resolve()
+    if not image.is_file():
+        raise FileNotFoundError(f"no such wallpaper: {image}")
+    binary = shutil.which("omarchy-theme-bg-set")
+    if not binary:
+        raise RuntimeError("omarchy-theme-bg-set was not found on PATH")
+    proc = subprocess.run([binary, str(image)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"omarchy-theme-bg-set failed "
+            f"(exit {proc.returncode}): {proc.stderr.strip()}"
+        )
+
+
+def current_wallpaper() -> Path | None:
+    """The wallpaper the shell is showing (resolved symlink), or None."""
+    link = paths.current_background_link()
+    try:
+        return link.resolve(strict=True)
+    except OSError:
+        return None
 
 
 def list_local_themes() -> "list[LibraryEntry]":  # noqa: F821

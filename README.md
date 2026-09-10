@@ -24,6 +24,10 @@ fts/
   colortest.py    ANSI/256/truecolor test text + self-contained POSIX sh script
   exporters.py    pure Palette -> theme-file renderers (foot, alacritty, ghostty,
                   kitty, wezterm, json) for the Export… button
+  aesthetic.py    palette vibe phrases + wallpaper prompt building (pure math)
+  providers.py    wallpaper image providers: mflux (FLUX.2 Klein on the Mac
+                  mini), Gemini "Nano Banana 2 Lite", ComfyUI SDXL fallback
+                  (transport-injected, stdlib-only)
   main.py         Adw.Application entry point (com.omarchy.TerminalThemeStudio)
   ui/             GTK4/libadwaita UI (window, library, swatches, image well,
                   terminal preview, color test view + dialogs)
@@ -37,7 +41,7 @@ bin/
 ## Run
 
 ```sh
-python3 -m unittest discover -s tests   # 101 tests, no display needed
+python3 -m unittest discover -s tests   # 142 tests, no display needed
 bin/terminal-theme-studio                   # GTK UI (or: python3 -m fts.main)
 ```
 
@@ -65,6 +69,54 @@ the core modules above import without `gi`/display.
   same 21-role palette in that terminal's shape (cursor text =
   background, ANSI = regular0–7/bright0–7), so exported files match what
   Omarchy itself generates. See SPEC.md for the full mapping.
+
+## Wallpapers… → one-click Omarchy theme creation
+
+The **Wallpapers…** button is the end-to-end flow: give it three or four
+aesthetic words (or leave blank — the palette's vibe is derived
+automatically), pick a provider, and hit **Create Theme**. That writes a
+complete Omarchy theme and switches the whole desktop to it:
+
+1. `~/.config/omarchy/themes/<name>/colors.toml` — the working palette
+   (from an image, a library theme, or hand-edited) in the full semantic
+   key set.
+2. `~/.config/omarchy/themes/<name>/backgrounds/1-…png` — the generated
+   wallpapers, shipped with the theme like Omarchy's own themes do.
+3. `omarchy-theme-set <name>` — the theme applies everywhere (Foot,
+   Ghostty, Alacritty, Hyprland, waybar, lock screen…).
+4. `omarchy-theme-bg-set <first wallpaper>` — the generated image becomes
+   the live desktop background.
+
+Turn off **Create a full Omarchy theme** for the lighter mode: wallpapers
+are only saved to `~/.config/omarchy/backgrounds/<theme>/`, joining the
+current theme's wallpaper rotation without touching any theme.
+
+Three providers, no new dependencies (stdlib `urllib` only):
+
+- **Flux — Mac mini M2 (default, local)**: the photoLiquidity mflux
+  bridge (LaunchAgent `com.photoliquidity.mflux`) serving FLUX.2 Klein
+  4B in 4-bit MLX.  Step-distilled — 2 steps at ~720²-pixel budgets,
+  about 20–35 s warm per wallpaper.  Free, no key.  Klein has no
+  negative prompt; requests serialize (single-process bridge).
+- **Gemini — Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`,
+  ~$0.034 per 1K image).  Needs an API key: create one at
+  [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and
+  persist it, e.g.
+  `printf 'GEMINI_API_KEY=…\n' > ~/.config/environment.d/90-gemini.conf`
+  (then log out and back in).  Optionally passes the source image along
+  as a style reference.
+- **ComfyUI — SDXL fallback** (separate backend; Flux jobs are never
+  routed here): queues a minimal txt2img graph and polls until done —
+  free, but about a minute per image.
+
+Environment variables (all optional):
+
+| variable | default | meaning |
+|---|---|---|
+| `FTS_MFLUX_URL` | `http://100.72.41.118:4030` | mflux bridge (FLUX.2 Klein) |
+| `GEMINI_API_KEY` | — | Gemini key (`GOOGLE_API_KEY` also accepted) |
+| `FTS_COMFYUI_URL` | `http://100.72.41.118:8188` | ComfyUI SDXL fallback |
+| `FTS_COMFYUI_CHECKPOINT` | `sd_xl_base_1.0.safetensors` | checkpoint to load |
 
 ## Install as an Omarchy shell plugin
 
