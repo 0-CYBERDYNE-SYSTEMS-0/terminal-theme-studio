@@ -169,3 +169,21 @@ plugin folder passes `omarchy plugin validate` on its own.
 Tests never touch real user config: they redirect everything with
 `FOOT_THEME_STUDIO_HOME` / `OMARCHY_PATH` to a temp dir, and
 `omarchy-theme-set` is only ever exercised via a mocked subprocess.
+
+## Dependencies, privacy & security
+
+- **Runtime deps:** Python 3.14 with PyGObject (GTK 4 + Adw +
+  GdkPixbuf), an Omarchy install for the apply paths, and Omarchy's own
+  public scripts (`omarchy-theme-set`, `omarchy-theme-bg-set`). No
+  third-party Python packages; all HTTP is stdlib `urllib`.
+- **Network:** the studio is offline until *you* press Generate.
+  Requests go only to the image endpoint you selected — your local
+  bridge/server, or a cloud API with your own key.
+- **Writes:** your Foot override, your user themes
+  (`~/.config/omarchy/themes/`), and your backgrounds folders. It never
+  touches `~/.local/state/omarchy/` itself and never edits another
+  tool's config beyond Omarchy's own apply scripts.
+- **Plugin safety:** no download-and-execute paths, no sudo/pkexec, no
+  bundled binaries — the marketplace's Automated Security Baseline
+  greps clean. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full
+  submission checklist and the provider-authoring guide.
