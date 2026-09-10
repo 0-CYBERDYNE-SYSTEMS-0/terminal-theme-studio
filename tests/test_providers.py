@@ -10,6 +10,7 @@ import os
 import sys
 import unittest
 import urllib.parse
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -283,6 +284,163 @@ class TestMfluxProvider(unittest.TestCase):
         with self.assertRaises(providers.ProviderError) as ctx:
             provider.generate("x")
         self.assertIn("Could not reach the mflux bridge", str(ctx.exception))
+
+
+class TestOpenAIImageProvider(unittest.TestCase):
+    def _provider(self, handler, **kwargs) -> tuple[providers.OpenAIImageProvider, FakeTransport]:
+        transport = FakeTransport(handler)
+        defaults = dict(base_url="http://img.test:8080/v1", api_key="sk-test")
+        defaults.update(kwargs)
+        return providers.OpenAIImageProvider(**defaults, transport=transport), transport
+
+    def test_requires_a_base_url(self):
+        with mock.patch.dict(os.environ, {"FTS_OPENAI_IMAGE_URL": ""}, clear=False):
+            provider = providers.OpenAIImageProvider(base_url=None)
+        with self.assertRaises(providers.ProviderError) as ctx:
+            provider.generate("x")
+        self.assertIn("FTS_OPENAI_IMAGE_URL", str(ctx.exception))
+
+    def test_request_shape_and_b64_response(self):
+        seen = {}
+
+        def handler(method, url, body, headers):
+            seen["method"] = method
+            seen["url"] = url
+            seen["body"] = json.loads(body.decode("utf-8"))
+            seen["headers"] = headers
+            return _json_response(
+                {"data": [{"b64_json": base64.b64encode(_PNG).decode("ascii")}]}
+            )
+
+        provider, transport = self._provider(handler)
+        images = provider.generate("a wallpaper", aspect="16:9", count=2)
+
+        self.assertEqual(seen["method"], "POST")
+        self.assertTrue(seen["url"].endswith("/v1/images/generations"))
+        self.assertEqual(seen["headers"]["Authorization"], "Bearer sk-test")
+        self.assertEqual(
+            seen["body"],
+            {"model": "gpt-image-1", "prompt": "a wallpaper",
+             "size": "960x544", "n": 1},
+        )
+        self.assertEqual(len(transport.calls), 2)
+        self.assertEqual(images[0].data, _PNG)
+        self.assertEqual(images[0].provider, "openai")
+        self.assertEqual(images[0].meta["size"], "960x544")
+
+    def test_url_response_is_fetched(self):
+        def handler(method, url, body, headers):
+            if method == "POST":
+                return _json_response({"data": [{"url": "http://img.test:8080/img/1"}]})
+            if method == "GET" and url.endswith("/img/1"):
+                return 200, _PNG
+            return 404, b"{}"
+
+        provider, _transport = self._provider(handler)
+        images = provider.generate("x")
+        self.assertEqual(images[0].data, _PNG)
+
+    def test_error_detail_surfaces(self):
+        def handler(method, url, body, headers):
+            return 400, json.dumps({"error": {"message": "bad size"}}).encode()
+
+        provider, _transport = self._provider(handler)
+        with self.assertRaises(providers.ProviderError) as ctx:
+            provider.generate("x")
+        self.assertIn("bad size", str(ctx.exception))
+
+    def test_explicit_size_override(self):
+        seen = {}
+
+        def handler(method, url, body, headers):
+            seen["body"] = json.loads(body.decode("utf-8"))
+            return _json_response(
+                {"data": [{"b64_json": base64.b64encode(_PNG).decode("ascii")}]}
+            )
+
+        provider, _transport = self._provider(handler, size="auto")
+        provider.generate("x")
+        self.assertEqual(seen["body"]["size"], "auto")
+
+    def test_no_header_without_key(self):
+        seen = {}
+
+        def handler(method, url, body, headers):
+            seen["headers"] = headers
+            return _json_response(
+                {"data": [{"b64_json": base64.b64encode(_PNG).decode("ascii")}]}
+            )
+
+        provider, _transport = self._provider(handler, api_key=None)
+        provider.generate("x")
+        self.assertNotIn("Authorization", seen["headers"])
+
+
+class TestCustomCommandProvider(unittest.TestCase):
+    def test_missing_command_explains_setup(self):
+        provider = providers.CustomCommandProvider(command="")
+        with self.assertRaises(providers.ProviderError) as ctx:
+            provider.generate("x")
+        self.assertIn("FTS_IMAGE_COMMAND", str(ctx.exception))
+
+    def test_runs_a_real_command_and_returns_its_stdout(self):
+        provider = providers.CustomCommandProvider(
+            command="printf '%s' {prompt}"
+        )
+        images = provider.generate("misty pines & 'quotes'", aspect="16:9")
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0].data, b"misty pines & 'quotes'")
+        self.assertEqual(images[0].provider, "custom")
+        self.assertEqual(images[0].meta["command"], "printf '%s' {prompt}")
+
+    def test_placeholders_and_mime_sniffing(self):
+        provider = providers.CustomCommandProvider(
+            command="printf '\\x89PNG\\r\\n\\x1a\\n {width}x{height}'"
+        )
+        images = provider.generate("x", aspect="21:9")
+        self.assertEqual(images[0].data, b"\x89PNG\r\n\x1a\n 1104x464")
+        self.assertEqual(images[0].mime, "image/png")
+
+    def test_failing_command_surfaces_stderr(self):
+        provider = providers.CustomCommandProvider(command="echo boom >&2; exit 3")
+        with self.assertRaises(providers.ProviderError) as ctx:
+            provider.generate("x")
+        self.assertIn("boom", str(ctx.exception))
+
+    def test_empty_stdout_is_an_error(self):
+        provider = providers.CustomCommandProvider(command="true")
+        with self.assertRaises(providers.ProviderError) as ctx:
+            provider.generate("x")
+        self.assertIn("no image", str(ctx.exception))
+
+
+class TestRegistry(unittest.TestCase):
+    def test_ids_unique_and_nonempty(self):
+        ids = [pid for pid, _label in providers.PROVIDERS]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(ids))
+
+    def test_make_provider_covers_every_registry_entry(self):
+        for pid, _label in providers.PROVIDERS:
+            provider = providers.make_provider(pid)
+            self.assertEqual(provider.name, pid)
+
+    def test_make_provider_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            providers.make_provider("nonexistent")
+
+    def test_hints_exist_for_every_entry(self):
+        for pid, _label in providers.PROVIDERS:
+            self.assertTrue(providers.provider_hint(pid), pid)
+
+    def test_sniff_mime(self):
+        self.assertEqual(providers.sniff_mime(b"\x89PNG\r\n\x1a\nxx"), "image/png")
+        self.assertEqual(providers.sniff_mime(b"\xff\xd8xx"), "image/jpeg")
+        self.assertEqual(providers.sniff_mime(b"GIF89a"), "image/gif")
+        self.assertEqual(
+            providers.sniff_mime(b"RIFFxxxxWEBP"), "image/webp"
+        )
+        self.assertEqual(providers.sniff_mime(b"junk"), "image/png")
 
 
 class TestComfyUIProvider(unittest.TestCase):

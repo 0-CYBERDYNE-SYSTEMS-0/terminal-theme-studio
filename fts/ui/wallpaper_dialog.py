@@ -25,15 +25,9 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from .. import aesthetic, omarchy, paths, providers  # noqa: E402
+from .. import aesthetic, omarchy, providers  # noqa: E402
 
 __all__ = ["WallpaperDialog"]
-
-_PROVIDERS = (
-    ("mflux", "Flux — Mac mini M2 (local)"),
-    ("gemini", "Gemini — Nano Banana 2 Lite (cloud)"),
-    ("comfyui", "ComfyUI — SDXL (local fallback)"),
-)
 
 _ASPECTS = (
     ("16:9", "16:9 — desktop"),
@@ -98,7 +92,7 @@ class WallpaperDialog(Adw.Dialog):
 
         self._provider = Adw.ComboRow(title="Provider")
         provider_list = Gtk.StringList()
-        for _pid, label in _PROVIDERS:
+        for _pid, label in providers.PROVIDERS:
             provider_list.append(label)
         self._provider.set_model(provider_list)
         self._provider.set_selected(0)
@@ -206,7 +200,7 @@ class WallpaperDialog(Adw.Dialog):
     # ------------------------------------------------------------------
 
     def _selected_provider(self) -> str:
-        return _PROVIDERS[self._provider.get_selected()][0]
+        return providers.PROVIDERS[self._provider.get_selected()][0]
 
     def _selected_aspect(self) -> str:
         return _ASPECTS[self._aspect.get_selected()][0]
@@ -285,21 +279,10 @@ class WallpaperDialog(Adw.Dialog):
                 "~/.config/omarchy/backgrounds/ (rotation only, no theme write)"
             )
 
-    def _update_provider_hint(self) -> None:
-        if self._selected_provider() == "gemini":
-            self._provider.set_subtitle(
-                "Cloud: ~$0.03 per 1K wallpaper on the key's Google account"
-            )
-        elif self._selected_provider() == "mflux":
-            self._provider.set_subtitle(
-                f"Local and free: FLUX.2 Klein at {paths.mflux_url()} "
-                "(about 20–30 s per image)"
-            )
-        else:
-            self._provider.set_subtitle(
-                f"Local and free: ComfyUI (SDXL fallback) at "
-                f"{paths.comfyui_url()} — slower, about a minute per image"
-            )
+    def _update_provider_hint(self, *args) -> None:
+        self._provider.set_subtitle(
+            providers.provider_hint(self._selected_provider())
+        )
 
     # ------------------------------------------------------------------
     # generation
@@ -365,12 +348,7 @@ class WallpaperDialog(Adw.Dialog):
         self._thread.start()
 
     def _make_provider(self):
-        provider_id = self._selected_provider()
-        if provider_id == "comfyui":
-            return providers.ComfyUIProvider()
-        if provider_id == "gemini":
-            return providers.GeminiProvider()
-        return providers.MfluxProvider()
+        return providers.make_provider(self._selected_provider())
 
     def _worker(
         self, provider, prompt, negative, aspect, count, reference,

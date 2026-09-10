@@ -24,6 +24,10 @@ __all__ = [
     "mflux_url",
     "comfyui_url",
     "comfyui_checkpoint",
+    "image_command",
+    "openai_image_url",
+    "openai_image_model",
+    "openai_api_key",
 ]
 
 
@@ -124,3 +128,46 @@ def comfyui_checkpoint() -> str:
     provider to Flux with no code change.
     """
     return os.environ.get("FTS_COMFYUI_CHECKPOINT") or "sd_xl_base_1.0.safetensors"
+
+
+# --------------------------------------------------------------------------
+# bring-your-own image route (custom command / OpenAI-compatible)
+# --------------------------------------------------------------------------
+
+def image_command() -> str | None:
+    """The user's custom image-generation command (``FTS_IMAGE_COMMAND``).
+
+    A shell command template containing ``{prompt}``, ``{width}`` and
+    ``{height}`` placeholders; it must write the image bytes to stdout.
+    None when unset.
+    """
+    cmd = os.environ.get("FTS_IMAGE_COMMAND", "").strip()
+    return cmd or None
+
+
+def openai_image_url() -> str | None:
+    """Base URL of an OpenAI-compatible images server
+    (``FTS_OPENAI_IMAGE_URL``); None when unset.
+
+    Anything speaking ``POST <base>/images/generations`` works — LocalAI,
+    SwarmUI, an SMOL proxy, a corporate gateway, api.openai.com itself.
+    """
+    url = os.environ.get("FTS_OPENAI_IMAGE_URL", "").strip()
+    return url or None
+
+
+def openai_image_model() -> str:
+    """The model id sent to the OpenAI-compatible server
+    (``FTS_OPENAI_IMAGE_MODEL``)."""
+    return os.environ.get("FTS_OPENAI_IMAGE_MODEL") or "gpt-image-1"
+
+
+def openai_api_key() -> str | None:
+    """API key for the OpenAI-compatible server: ``FTS_OPENAI_API_KEY``
+    falling back to ``OPENAI_API_KEY``; None when unset (local servers
+    usually need none)."""
+    return (
+        os.environ.get("FTS_OPENAI_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or None
+    )

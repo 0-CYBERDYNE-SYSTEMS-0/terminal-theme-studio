@@ -251,10 +251,13 @@ guidance, and a baked-in negative.
 
 ### Providers (`fts/providers.py`)
 
-All return `GeneratedImage(bytes, mime, provider, prompt, meta)` and
-take an injected transport (stdlib `urllib` by default — no new
+All return `GeneratedImage(bytes, mime, provider, prompt, meta)`, share
+the call shape `generate(prompt, *, aspect, count, reference)`, and take
+an injected transport (stdlib `urllib` by default — no new
 dependencies); all failures raise `ProviderError` with a
-user-presentable message.
+user-presentable message.  The UI builds its dropdown from
+`providers.PROVIDERS` and instantiates via `providers.make_provider` —
+contributing a provider is one class plus those two registrations.
 
 - **`MfluxProvider`** (the default local provider) — the photoLiquidity
   mflux bridge on the Mac mini M2 (LaunchAgent
@@ -287,6 +290,16 @@ user-presentable message.
   buckets per aspect (16:9 → 1344×768, 21:9 → 1536×640 …).
   `FTS_COMFYUI_URL` (default `http://100.72.41.118:8188`) and
   `FTS_COMFYUI_CHECKPOINT` (default `sd_xl_base_1.0.safetensors`).
+- **`OpenAIImageProvider`** (bring your own endpoint) — any server
+  speaking the standard `POST <base>/images/generations` with
+  `{model, prompt, size, n}`; `b64_json` primary, `url` responses are
+  fetched.  `FTS_OPENAI_IMAGE_URL` (+ `FTS_OPENAI_IMAGE_MODEL`,
+  `FTS_OPENAI_IMAGE_SIZE`, `FTS_OPENAI_API_KEY`/`OPENAI_API_KEY`).
+- **`CustomCommandProvider`** (bring your own anything) — runs
+  `FTS_IMAGE_COMMAND` under `/bin/sh -c` with `{prompt}` (shell-quoted),
+  `{width}`, `{height}` substituted; stdout is the image, sniffed via
+  magic bytes.  The universal escape hatch: any CLI, API, or ssh
+  one-liner becomes a provider.
 
 ### Omarchy integration (`fts/omarchy.py`)
 

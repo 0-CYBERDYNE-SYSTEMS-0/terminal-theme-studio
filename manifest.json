@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "scrimwiggins.terminal-theme-studio",
   "name": "Terminal Theme Studio",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "scrimwiggins",
   "license": "MIT",
   "description": "Terminal Theme Studio in the bar: author a terminal palette, export it to Foot, Alacritty, Ghostty, Kitty, WezTerm, save it as an Omarchy theme, and generate matching AI wallpapers.",

@@ -25,9 +25,10 @@ fts/
   exporters.py    pure Palette -> theme-file renderers (foot, alacritty, ghostty,
                   kitty, wezterm, json) for the Export… button
   aesthetic.py    palette vibe phrases + wallpaper prompt building (pure math)
-  providers.py    wallpaper image providers: mflux (FLUX.2 Klein on the Mac
-                  mini), Gemini "Nano Banana 2 Lite", ComfyUI SDXL fallback
-                  (transport-injected, stdlib-only)
+  providers.py    pluggable wallpaper providers: mflux (FLUX.2 Klein), Gemini
+                  "Nano Banana 2 Lite", ComfyUI SDXL, OpenAI-compatible
+                  /v1/images, and a custom-command escape hatch — all
+                  transport-injected, stdlib-only
   main.py         Adw.Application entry point (com.omarchy.TerminalThemeStudio)
   ui/             GTK4/libadwaita UI (window, library, swatches, image well,
                   terminal preview, color test view + dialogs)
@@ -41,7 +42,7 @@ bin/
 ## Run
 
 ```sh
-python3 -m unittest discover -s tests   # 142 tests, no display needed
+python3 -m unittest discover -s tests   # 169 tests, no display needed
 bin/terminal-theme-studio                   # GTK UI (or: python3 -m fts.main)
 ```
 
@@ -91,7 +92,10 @@ Turn off **Create a full Omarchy theme** for the lighter mode: wallpapers
 are only saved to `~/.config/omarchy/backgrounds/<theme>/`, joining the
 current theme's wallpaper rotation without touching any theme.
 
-Three providers, no new dependencies (stdlib `urllib` only):
+Three built-in endpoints plus two bring-your-own routes, no new
+dependencies (stdlib `urllib` only). Pick in the provider dropdown;
+every route is also a subclass away for contributors (see
+CONTRIBUTING.md):
 
 - **Flux — Mac mini M2 (default, local)**: the photoLiquidity mflux
   bridge (LaunchAgent `com.photoliquidity.mflux`) serving FLUX.2 Klein
@@ -108,8 +112,37 @@ Three providers, no new dependencies (stdlib `urllib` only):
 - **ComfyUI — SDXL fallback** (separate backend; Flux jobs are never
   routed here): queues a minimal txt2img graph and polls until done —
   free, but about a minute per image.
+- **OpenAI-compatible — /v1/images**: any server speaking the standard
+  `POST <base>/images/generations` — LocalAI, SwarmUI, a gateway, or
+  api.openai.com itself.
+- **Custom command — anything**: if a route exists, a one-liner can use
+  it (see below).
 
-Environment variables (all optional):
+### Bring your own image route
+
+Two env vars cover everything the built-ins don't:
+
+| variable | meaning |
+|---|---|
+| `FTS_IMAGE_COMMAND` | Any shell command with `{prompt}`, `{width}`, `{height}` placeholders; its stdout is the wallpaper |
+| `FTS_OPENAI_IMAGE_URL` | Base URL of any OpenAI-compatible images server (`POST <base>/images/generations`) |
+| `FTS_OPENAI_IMAGE_MODEL` | Model id for that server (default `gpt-image-1`) |
+| `FTS_OPENAI_IMAGE_SIZE` | Force a size (e.g. `auto` for api.openai.com; otherwise aspect-mapped 960x544-style buckets) |
+| `FTS_OPENAI_API_KEY` | Key for that server (`OPENAI_API_KEY` also accepted; local servers usually need none) |
+
+Examples:
+
+```sh
+# any tool that can print a picture
+FTS_IMAGE_COMMAND='draw-things-cli --prompt {prompt} --width {width} --height {height}'
+FTS_IMAGE_COMMAND='ssh gpu-box do-ai --prompt {prompt} | convert - png:-'
+
+# any OpenAI-compatible server
+FTS_OPENAI_IMAGE_URL=http://localhost:8080/v1  FTS_OPENAI_IMAGE_MODEL=flux.1-schnell
+FTS_OPENAI_IMAGE_URL=https://api.openai.com/v1 FTS_OPENAI_IMAGE_SIZE=auto
+```
+
+All provider environment variables (optional):
 
 | variable | default | meaning |
 |---|---|---|
@@ -117,6 +150,8 @@ Environment variables (all optional):
 | `GEMINI_API_KEY` | — | Gemini key (`GOOGLE_API_KEY` also accepted) |
 | `FTS_COMFYUI_URL` | `http://100.72.41.118:8188` | ComfyUI SDXL fallback |
 | `FTS_COMFYUI_CHECKPOINT` | `sd_xl_base_1.0.safetensors` | checkpoint to load |
+| `FTS_IMAGE_COMMAND` | — | custom command template (stdout = image) |
+| `FTS_OPENAI_IMAGE_URL` | — | OpenAI-compatible images base URL |
 
 ## Install as an Omarchy shell plugin
 

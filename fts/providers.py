@@ -1,16 +1,13 @@
-"""Wallpaper image providers: Gemini (Nano Banana), mflux (Flux), ComfyUI.
+"""Wallpaper image providers: pluggable image-generation backends.
 
 The studio's first networked module, kept ``gi``-free and transport-
 injected so tests never touch the network.  All providers return
 :class:`GeneratedImage` blobs; saving and applying them is Omarchy's
-job (:mod:`fts.omarchy`), not theirs.
+job (:mod:`fts.omarchy`), not theirs.  Every provider shares the same
+call shape ``generate(prompt, *, aspect, count, reference)`` so the UI
+treats them uniformly.
 
-* ``GeminiProvider`` calls the Gemini Interactions API
-  (``https://generativelanguage.googleapis.com/v1beta/interactions``)
-  with the cheap image model ``gemini-3.1-flash-lite-image``
-  ("Nano Banana 2 Lite"), ``image_size`` fixed at ``1K`` (~$0.034 per
-  image).  The key comes from ``GEMINI_API_KEY`` (or
-  ``GOOGLE_API_KEY``) via :func:`fts.paths.gemini_api_key`.
+Built in, in dropdown order (see :data:`PROVIDERS`):
 
 * ``MfluxProvider`` (the default local provider) talks to the
   photoLiquidity mflux bridge on the Mac mini M2 — a FastAPI service
@@ -22,19 +19,45 @@ job (:mod:`fts.omarchy`), not theirs.
   are strictly sequential.  Its ``/shutdown`` route is shared
   infrastructure and is never called.
 
+* ``GeminiProvider`` calls the Gemini Interactions API
+  (``https://generativelanguage.googleapis.com/v1beta/interactions``)
+  with the cheap image model ``gemini-3.1-flash-lite-image``
+  ("Nano Banana 2 Lite"), ``image_size`` fixed at ``1K`` (~$0.034 per
+  image).  The key comes from ``GEMINI_API_KEY`` (or
+  ``GOOGLE_API_KEY``) via :func:`fts.paths.gemini_api_key`.
+
 * ``ComfyUIProvider`` (SDXL fallback backend, separate from the mflux
   bridge — never route Flux jobs there) drives a ComfyUI server's
   ``/prompt`` queue with a minimal txt2img graph, polls
   ``/history/<id>`` and downloads the result from ``/view``.  The
   endpoint and checkpoint default to the Mac mini M2
   (``FTS_COMFYUI_URL`` / ``FTS_COMFYUI_CHECKPOINT``).
+
+Bring-your-own, for everyone else:
+
+* ``OpenAIImageProvider`` speaks the de-facto standard
+  ``POST <base>/images/generations`` — point ``FTS_OPENAI_IMAGE_URL``
+  at LocalAI, SwarmUI, a corporate gateway, api.openai.com, anything
+  compatible.
+
+* ``CustomCommandProvider`` runs any command at all:
+  ``FTS_IMAGE_COMMAND`` is a shell template with ``{prompt}``,
+  ``{width}`` and ``{height}`` placeholders whose stdout is the image.
+  If a route exists, a one-line command can use it.
+
+Adding a provider is three steps (see CONTRIBUTING.md): subclass with
+the shared ``generate`` shape, add an entry to :data:`PROVIDERS`, add a
+branch to :func:`make_provider`.
 """
 
 from __future__ import annotations
 
 import base64
 import json
+import os
 import random
+import shlex
+import subprocess
 import time
 import urllib.error
 import urllib.parse
@@ -50,9 +73,15 @@ __all__ = [
     "GeminiProvider",
     "MfluxProvider",
     "ComfyUIProvider",
+    "OpenAIImageProvider",
+    "CustomCommandProvider",
+    "PROVIDERS",
+    "provider_hint",
+    "make_provider",
     "latents_for_aspect",
     "flux_dimensions",
     "ext_for_mime",
+    "sniff_mime",
 ]
 
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
@@ -104,7 +133,21 @@ def ext_for_mime(mime: str) -> str:
         "image/jpeg": ".jpg",
         "image/jpg": ".jpg",
         "image/webp": ".webp",
+        "image/gif": ".gif",
     }.get((mime or "").lower(), ".png")
+
+
+def sniff_mime(data: bytes) -> str:
+    """Image mime type from magic bytes ('image/png' fallback)."""
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8"):
+        return "image/jpeg"
+    if data.startswith(b"GIF8"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/png"
 
 
 def latents_for_aspect(aspect: str) -> tuple[int, int]:
@@ -395,6 +438,266 @@ class MfluxProvider:
             raise ProviderError(
                 f"Could not reach the mflux bridge at {self._base}: {exc}"
             ) from exc
+
+
+# --------------------------------------------------------------------------
+# OpenAI-compatible images API (bring your own endpoint)
+# --------------------------------------------------------------------------
+
+class OpenAIImageProvider:
+    """Any server speaking ``POST <base>/images/generations``.
+
+    The de-facto standard shape: ``{model, prompt, size, n}`` in, base64
+    (or a URL) back under ``data[0]``.  Covers LocalAI, SwarmUI, gateways
+    and api.openai.com alike — configure with ``FTS_OPENAI_IMAGE_URL``,
+    optionally ``FTS_OPENAI_IMAGE_MODEL``, ``FTS_OPENAI_IMAGE_SIZE`` and
+    ``FTS_OPENAI_API_KEY`` (falls back to ``OPENAI_API_KEY``).
+    """
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        *,
+        model: str | None = None,
+        api_key: str | None = None,
+        size: str | None = None,
+        request_timeout: float = 120.0,
+        transport=None,
+    ) -> None:
+        self._base = (base_url or paths.openai_image_url() or "").rstrip("/")
+        self._model = model or paths.openai_image_model()
+        self._api_key = (
+            api_key if api_key is not None else paths.openai_api_key()
+        )
+        # Explicit size wins; otherwise aspect-mapped 1K-class buckets,
+        # which compatible servers generally accept.
+        self._size = size or os.environ.get("FTS_OPENAI_IMAGE_SIZE") or None
+        self._request_timeout = request_timeout
+        self._transport = transport or _urllib_transport(request_timeout)
+
+    @property
+    def name(self) -> str:
+        return "openai"
+
+    def generate(
+        self,
+        prompt: str,
+        *,
+        aspect: str = "16:9",
+        count: int = 1,
+        reference: tuple[bytes, str] | None = None,
+    ) -> list[GeneratedImage]:
+        if not self._base:
+            raise ProviderError(
+                "No OpenAI-compatible endpoint configured. Set "
+                "FTS_OPENAI_IMAGE_URL (e.g. http://localhost:8080/v1) — "
+                "optionally FTS_OPENAI_IMAGE_MODEL and FTS_OPENAI_API_KEY."
+            )
+        del reference  # the images API has no reference-image field
+        width, height = flux_dimensions(aspect)
+        size = self._size or f"{width}x{height}"
+
+        body = {
+            "model": self._model,
+            "prompt": prompt,
+            "size": size,
+            "n": 1,
+        }
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        images: list[GeneratedImage] = []
+        for index in range(max(1, count)):
+            status, payload = self._post(
+                f"{self._base}/images/generations",
+                json.dumps(body).encode("utf-8"),
+                headers,
+            )
+            document = _parse_json(status, payload, "images/generations")
+            data, mime = self._extract(document)
+            images.append(
+                GeneratedImage(
+                    data=data,
+                    mime=mime,
+                    provider=self.name,
+                    prompt=prompt,
+                    meta={
+                        "model": self._model,
+                        "size": size,
+                        "index": index,
+                    },
+                )
+            )
+        return images
+
+    def _post(self, url: str, body: bytes, headers: dict):
+        try:
+            return self._transport("POST", url, body, headers)
+        except Exception as exc:
+            raise ProviderError(
+                f"Could not reach the images endpoint at {self._base}: {exc}"
+            ) from exc
+
+    def _extract(self, document: dict) -> tuple[bytes, str]:
+        """b64_json primary; ``url`` responses are fetched as a fallback."""
+        items = document.get("data") or []
+        first = items[0] if isinstance(items, list) and items else None
+        if not isinstance(first, dict):
+            raise ProviderError("the images endpoint returned no data")
+        if first.get("b64_json"):
+            return base64.b64decode(first["b64_json"]), "image/png"
+        url = first.get("url")
+        if url:
+            try:
+                status, data = self._transport("GET", url, None, {})
+            except Exception as exc:
+                raise ProviderError(f"could not fetch the image url: {exc}") from exc
+            if status == 200 and data:
+                return data, sniff_mime(data)
+        raise ProviderError("the images endpoint returned no image data")
+
+
+# --------------------------------------------------------------------------
+# custom command (bring your own anything)
+# --------------------------------------------------------------------------
+
+class CustomCommandProvider:
+    """Run the user's own command as an image provider.
+
+    ``FTS_IMAGE_COMMAND`` is a shell template whose ``{prompt}``,
+    ``{width}`` and ``{height}`` placeholders are substituted (the prompt
+    is shell-quoted); whatever the command writes to stdout is taken as
+    the image.  This is the universal escape hatch: curl to a paid API,
+    a Draw Things CLI, an ssh one-liner to another machine — if it can
+    print a picture, it can be a provider.
+    """
+
+    def __init__(
+        self,
+        command: str | None = None,
+        *,
+        request_timeout: float = 300.0,
+    ) -> None:
+        self._command = (
+            command if command is not None else paths.image_command()
+        ) or ""
+        self._request_timeout = request_timeout
+
+    @property
+    def name(self) -> str:
+        return "custom"
+
+    def generate(
+        self,
+        prompt: str,
+        *,
+        aspect: str = "16:9",
+        count: int = 1,
+        reference: tuple[bytes, str] | None = None,
+    ) -> list[GeneratedImage]:
+        del reference  # commands get text only
+        if not self._command:
+            raise ProviderError(
+                "No custom image command configured. Set FTS_IMAGE_COMMAND "
+                "to a shell command containing {prompt}, {width} and "
+                "{height} — it must write the image to stdout, e.g.\n"
+                "  FTS_IMAGE_COMMAND='my-tool --prompt {prompt} "
+                "--width {width} --height {height}'"
+            )
+        width, height = flux_dimensions(aspect)
+        command = (
+            self._command
+            .replace("{prompt}", shlex.quote(prompt))
+            .replace("{width}", str(width))
+            .replace("{height}", str(height))
+        )
+
+        images: list[GeneratedImage] = []
+        for index in range(max(1, count)):
+            try:
+                proc = subprocess.run(
+                    ["/bin/sh", "-c", command],
+                    capture_output=True,
+                    timeout=self._request_timeout,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise ProviderError(
+                    f"the custom image command timed out after "
+                    f"{self._request_timeout:.0f}s"
+                ) from exc
+            if proc.returncode != 0:
+                raise ProviderError(
+                    "the custom image command failed: "
+                    f"{proc.stderr.decode('utf-8', errors='replace').strip()[:300]}"
+                )
+            if not proc.stdout:
+                raise ProviderError(
+                    "the custom image command wrote no image to stdout"
+                )
+            images.append(
+                GeneratedImage(
+                    data=proc.stdout,
+                    mime=sniff_mime(proc.stdout),
+                    provider=self.name,
+                    prompt=prompt,
+                    meta={"command": self._command, "index": index},
+                )
+            )
+        return images
+
+
+# --------------------------------------------------------------------------
+# provider registry — add a provider here + in make_provider()
+# --------------------------------------------------------------------------
+
+#: (id, dropdown label) in UI order; index 0 is the default.
+PROVIDERS: list[tuple[str, str]] = [
+    ("mflux", "Flux — Mac mini M2 (local)"),
+    ("gemini", "Gemini — Nano Banana 2 Lite (cloud)"),
+    ("comfyui", "ComfyUI — SDXL (local fallback)"),
+    ("openai", "OpenAI-compatible — /v1/images (bring your own)"),
+    ("custom", "Custom command — anything (bring your own)"),
+]
+
+
+def provider_hint(provider_id: str) -> str:
+    """One-line setup hint shown under the provider dropdown."""
+    hints = {
+        "mflux": (
+            f"Local and free: FLUX.2 Klein at {paths.mflux_url()} "
+            "(about 20–30 s per image)"
+        ),
+        "gemini": "Cloud: ~$0.03 per 1K wallpaper on the key's Google account",
+        "comfyui": (
+            f"Local and free: ComfyUI (SDXL fallback) at {paths.comfyui_url()} "
+            "— slower, about a minute per image"
+        ),
+        "openai": (
+            "Set FTS_OPENAI_IMAGE_URL to any server speaking "
+            "/v1/images/generations (+ FTS_OPENAI_IMAGE_MODEL, API key optional)"
+        ),
+        "custom": (
+            "Set FTS_IMAGE_COMMAND to any shell command with {prompt}, "
+            "{width}, {height} — its stdout becomes the wallpaper"
+        ),
+    }
+    return hints.get(provider_id, "")
+
+
+def make_provider(provider_id: str):
+    """Instantiate a provider by registry id."""
+    if provider_id == "mflux":
+        return MfluxProvider()
+    if provider_id == "gemini":
+        return GeminiProvider()
+    if provider_id == "comfyui":
+        return ComfyUIProvider()
+    if provider_id == "openai":
+        return OpenAIImageProvider()
+    if provider_id == "custom":
+        return CustomCommandProvider()
+    raise ValueError(f"unknown provider: {provider_id!r}")
 
 
 # --------------------------------------------------------------------------
