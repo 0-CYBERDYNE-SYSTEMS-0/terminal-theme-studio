@@ -203,6 +203,12 @@ class FtsWindow(Adw.ApplicationWindow):
         palette, name = self._initial_palette()
         self.set_palette(palette, name=name, mark_modified=False)
 
+        dismiss = Gtk.GestureClick()
+        dismiss.set_button(1)
+        dismiss.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        dismiss.connect("pressed", self._on_capture_click)
+        self.add_controller(dismiss)
+
     # ------------------------------------------------------------------
     # working palette state
     # ------------------------------------------------------------------
@@ -258,6 +264,8 @@ class FtsWindow(Adw.ApplicationWindow):
         self.set_palette(Palette.from_dict(data))
 
     def _on_library_entry(self, _panel, entry) -> None:
+        if self._colortest_dialog is not None:
+            self._colortest_dialog.close()
         self._library.set_active_entry(entry)
         self.set_palette(entry.palette, name=entry.name, mark_modified=False)
 
@@ -321,6 +329,27 @@ class FtsWindow(Adw.ApplicationWindow):
             self.toast(
                 f"Reverted — Foot restored to the active theme ({pushed} terminal(s) refreshed)"
             )
+
+    def _on_capture_click(self, _gesture, _n_press, x: float, y: float) -> None:
+        """Clicking the dimmed area outside Color Test closes it."""
+        dialog = self._colortest_dialog
+        if dialog is None:
+            return
+        # Prefer widget pick: the sheet's descendants are inside, the
+        # dimming/library/header are not.
+        node = self.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while node is not None:
+            if node is dialog:
+                return
+            node = node.get_parent()
+        ok, rect = dialog.compute_bounds(self)
+        if ok:
+            left, top = rect.origin.x, rect.origin.y
+            right = left + rect.size.width
+            bottom = top + rect.size.height
+            if left <= x <= right and top <= y <= bottom:
+                return
+        dialog.close()
 
     def _on_color_test(self, button) -> None:
         if self._colortest_dialog is None:

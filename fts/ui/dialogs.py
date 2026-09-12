@@ -28,7 +28,12 @@ __all__ = ["ColorTestDialog", "ExportDialog", "SaveThemeDialog"]
 
 
 class ColorTestDialog(Adw.Dialog):
-    """In-app spectrum plus a 'Run in Foot' launcher."""
+    """In-app spectrum plus a 'Run in Foot' launcher.
+
+    Always a bottom sheet on the parent window — never a separate
+    toplevel that Hyprland could tile off the right edge. Clicking the
+    dimmed area outside the sheet (or Close / Escape) dismisses it.
+    """
 
     def __init__(self, get_palette, toast, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -37,10 +42,13 @@ class ColorTestDialog(Adw.Dialog):
         self._tmpfiles: list[Path] = []
 
         self.set_title("Color Test")
-        # Preferred size for a wide window; Adw.Dialog clamps to the parent
-        # so a tiled ~900px studio never overflows. The canvas itself scales.
-        self.set_content_width(720)
-        self.set_content_height(560)
+        self.set_can_close(True)
+        # Bottom sheet stays inside the parent. AUTO/FLOATING can map as a
+        # new Wayland toplevel; a tiling compositor then parks it in a
+        # thin right pane where the close button is unreachable.
+        self.set_presentation_mode(Adw.DialogPresentationMode.BOTTOM_SHEET)
+        self.set_content_width(640)
+        self.set_content_height(520)
         self.set_follows_content_size(False)
 
         self._view = ColorTestView()
@@ -56,8 +64,13 @@ class ColorTestDialog(Adw.Dialog):
         run_btn.set_tooltip_text("Open a new Foot running the color test script")
         run_btn.connect("clicked", self._on_run)
 
+        close_btn = Gtk.Button(label="Close")
+        close_btn.set_tooltip_text("Close the color test (or click outside)")
+        close_btn.connect("clicked", lambda *_args: self.close())
+
         header = Adw.HeaderBar()
         header.pack_start(run_btn)
+        header.pack_end(close_btn)
         header.set_title_widget(
             Adw.WindowTitle(title="Color test", subtitle="in-app spectrum + the real Foot")
         )

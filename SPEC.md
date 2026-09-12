@@ -112,7 +112,9 @@ Layout:
 - **Toolbar.** Open image, color test, revert, wallpapers, export, save
   as Omarchy theme wrap onto extra lines when the window is narrow;
   Foot-only **Apply** stays on the header so it never clips. The in-app
-  color test canvas scales to the dialog width (no horizontal overflow).
+  color test is a bottom sheet inside the parent (never a separate tiled
+  window), scales to the sheet width, and closes on click-outside, Close,
+  or Escape.
 
 ## Color test
 

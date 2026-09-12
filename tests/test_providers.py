@@ -394,8 +394,9 @@ class TestCustomCommandProvider(unittest.TestCase):
         self.assertEqual(images[0].meta["command"], "printf '%s' {prompt}")
 
     def test_placeholders_and_mime_sniffing(self):
+        # POSIX octal escapes so /bin/sh is dash (Ubuntu CI) or bash.
         provider = providers.CustomCommandProvider(
-            command="printf '\\x89PNG\\r\\n\\x1a\\n {width}x{height}'"
+            command="printf '\\211PNG\\r\\n\\032\\n {width}x{height}'"
         )
         images = provider.generate("x", aspect="21:9")
         self.assertEqual(images[0].data, b"\x89PNG\r\n\x1a\n 1104x464")
