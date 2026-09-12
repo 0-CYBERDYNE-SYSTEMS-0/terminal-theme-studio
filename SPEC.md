@@ -109,8 +109,10 @@ Layout:
   (GdkPixbuf sample; k-means or median-cut in-process; Pillow optional).
   Map by luminance (darkest → bg, lightest → fg) and hue (reddest → red,
   etc.). User can then click any slot and reassign.
-- **Toolbar.** Open image, load library theme, revert, Foot-only apply,
-  save as Omarchy theme, run color test.
+- **Toolbar.** Open image, color test, revert, wallpapers, export, save
+  as Omarchy theme wrap onto extra lines when the window is narrow;
+  Foot-only **Apply** stays on the header so it never clips. The in-app
+  color test canvas scales to the dialog width (no horizontal overflow).
 
 ## Color test
 

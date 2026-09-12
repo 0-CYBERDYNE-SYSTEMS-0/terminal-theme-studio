@@ -37,12 +37,18 @@ class ColorTestDialog(Adw.Dialog):
         self._tmpfiles: list[Path] = []
 
         self.set_title("Color Test")
-        self.set_content_width(940)
-        self.set_content_height(620)
+        # Preferred size for a wide window; Adw.Dialog clamps to the parent
+        # so a tiled ~900px studio never overflows. The canvas itself scales.
+        self.set_content_width(720)
+        self.set_content_height(560)
+        self.set_follows_content_size(False)
 
         self._view = ColorTestView()
         scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_hexpand(True)
+        scroll.set_vexpand(True)
+        # Horizontal scrolling is a bug here: the spectrum must flex, not clip.
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_child(self._view)
 
         run_btn = Gtk.Button(label="Run in Foot")

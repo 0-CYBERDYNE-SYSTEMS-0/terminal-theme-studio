@@ -30,6 +30,22 @@ from .wallpaper_dialog import WallpaperDialog  # noqa: E402
 __all__ = ["FtsWindow"]
 
 
+def _action_button(
+    label: str,
+    tooltip: str,
+    on_click,
+    *,
+    suggested: bool = False,
+) -> Gtk.Button:
+    """Labeled toolbar button; the tooltip keeps the long description."""
+    button = Gtk.Button(label=label)
+    button.set_tooltip_text(tooltip)
+    button.connect("clicked", on_click)
+    if suggested:
+        button.add_css_class("suggested-action")
+    return button
+
+
 class FtsWindow(Adw.ApplicationWindow):
     """Top-level window: library | swatches+image well / preview."""
 
@@ -50,7 +66,7 @@ class FtsWindow(Adw.ApplicationWindow):
 
         self.set_title("Terminal Theme Studio")
         self.set_default_size(1280, 800)  # >= 1200x760
-        self.set_size_request(900, 600)  # hard minimum
+        self.set_size_request(640, 480)  # tiled-half and wrap-bar still work
 
         # ---- panels (created first; header buttons reference them) ----
         self._library = LibraryPanel()
@@ -71,56 +87,78 @@ class FtsWindow(Adw.ApplicationWindow):
         ):
             getattr(self._preview, attr)(value)
 
-        # ---- header bar ------------------------------------------------
+        # ---- header + wrapping action bar ------------------------------
+        # Apply stays on the HeaderBar so the primary action never clips.
+        # Everything else lives in an Adw.WrapBox that folds onto a second
+        # line when the window is tiled next to another pane (~900px).
         self._wtitle = Adw.WindowTitle(
             title=self._working_name, subtitle="Terminal Theme Studio"
         )
         header = Adw.HeaderBar()
+        header.set_centering_policy(Adw.CenteringPolicy.LOOSE)
         header.set_title_widget(self._wtitle)
 
-        open_btn = Gtk.Button(label="Open Image")
-        open_btn.set_tooltip_text("Extract a palette from an image")
-        open_btn.connect("clicked", lambda *_args: self._imagewell.open_dialog())
-        header.pack_start(open_btn)
-
-        color_btn = Gtk.Button(label="Color Test")
-        color_btn.set_tooltip_text("Spectrum in-app and in a real Foot")
-        color_btn.connect("clicked", self._on_color_test)
-        header.pack_start(color_btn)
-
-        revert_btn = Gtk.Button(label="Revert")
-        revert_btn.set_tooltip_text("Drop the override, back to the active theme")
-        revert_btn.connect("clicked", self._on_revert)
-        header.pack_start(revert_btn)
-
-        apply_btn = Gtk.Button(label="Apply to Foot")
-        apply_btn.add_css_class("suggested-action")
-        apply_btn.set_tooltip_text(
-            "Write ~/.config/foot/palette.ini and OSC-push into running Foot"
+        apply_btn = _action_button(
+            "Apply",
+            "Apply to Foot — write ~/.config/foot/palette.ini and OSC-push "
+            "into running Foot",
+            self._on_apply,
+            suggested=True,
         )
-        apply_btn.connect("clicked", self._on_apply)
         header.pack_end(apply_btn)
 
-        save_btn = Gtk.Button(label="Save as Omarchy Theme…")
-        save_btn.set_tooltip_text("Write a named user theme under ~/.config/omarchy/themes")
-        save_btn.connect("clicked", self._on_save_theme)
-        header.pack_end(save_btn)
-
-        export_btn = Gtk.Button(label="Export…")
-        export_btn.set_tooltip_text(
+        open_btn = _action_button(
+            "Open Image",
+            "Extract a palette from an image",
+            lambda *_args: self._imagewell.open_dialog(),
+        )
+        color_btn = _action_button(
+            "Color Test",
+            "Spectrum in-app and in a real Foot",
+            self._on_color_test,
+        )
+        revert_btn = _action_button(
+            "Revert",
+            "Drop the override, back to the active theme",
+            self._on_revert,
+        )
+        wallpapers_btn = _action_button(
+            "Wallpapers…",
+            "Generate matching desktop wallpapers and set one the Omarchy way",
+            self._on_wallpapers,
+        )
+        export_btn = _action_button(
+            "Export…",
             "Save this palette as a theme file for Alacritty, Ghostty, "
-            "Kitty, WezTerm, or any other terminal"
+            "Kitty, WezTerm, or any other terminal",
+            self._on_export,
         )
-        export_btn.connect("clicked", self._on_export)
-        header.pack_end(export_btn)
+        save_btn = _action_button(
+            "Save Theme…",
+            "Write a named user theme under ~/.config/omarchy/themes",
+            self._on_save_theme,
+        )
 
-        wallpapers_btn = Gtk.Button(label="Wallpapers…")
-        wallpapers_btn.set_tooltip_text(
-            "Generate matching desktop wallpapers (Gemini Nano Banana or "
-            "the local ComfyUI) and set one the Omarchy way"
-        )
-        wallpapers_btn.connect("clicked", self._on_wallpapers)
-        header.pack_end(wallpapers_btn)
+        actions = Adw.WrapBox()
+        actions.add_css_class("toolbar")
+        actions.set_hexpand(True)
+        actions.set_child_spacing(6)
+        actions.set_line_spacing(6)
+        actions.set_wrap_policy(Adw.WrapPolicy.MINIMUM)
+        actions.set_justify(Adw.JustifyMode.NONE)
+        actions.set_margin_start(8)
+        actions.set_margin_end(8)
+        actions.set_margin_top(2)
+        actions.set_margin_bottom(6)
+        for btn in (
+            open_btn,
+            color_btn,
+            revert_btn,
+            wallpapers_btn,
+            export_btn,
+            save_btn,
+        ):
+            actions.append(btn)
 
         # ---- panes ------------------------------------------------------
         top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -155,6 +193,7 @@ class FtsWindow(Adw.ApplicationWindow):
 
         toolbar = Adw.ToolbarView()
         toolbar.add_top_bar(header)
+        toolbar.add_top_bar(actions)
         toolbar.set_content(self._toasts)
         self.set_content(toolbar)
 
