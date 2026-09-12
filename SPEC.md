@@ -109,8 +109,12 @@ Layout:
   (GdkPixbuf sample; k-means or median-cut in-process; Pillow optional).
   Map by luminance (darkest → bg, lightest → fg) and hue (reddest → red,
   etc.). User can then click any slot and reassign.
-- **Toolbar.** Open image, load library theme, revert, Foot-only apply,
-  save as Omarchy theme, run color test.
+- **Toolbar.** Open image, color test, revert, wallpapers, export, save
+  as Omarchy theme wrap onto extra lines when the window is narrow;
+  Foot-only **Apply** stays on the header so it never clips. The in-app
+  color test is a bottom sheet inside the parent (never a separate tiled
+  window), scales to the sheet width, and closes on click-outside, Close,
+  or Escape.
 
 ## Color test
 
@@ -175,7 +179,7 @@ regular1=f38ba8
 ## Later (not v1)
 
 - Per-terminal **live apply** beyond Foot (OSC/reload per emulator)
-- Wallpaper set from the source image
+- ~~Wallpaper set from the source image~~ — shipped as **Wallpapers… (v1.2)**, below
 - Contrast / WCAG warnings
 - Import (round-trip) of foreign theme files
 - Plugin or `omarchy` CLI subcommand
@@ -235,3 +239,102 @@ plugins** installed from git.  The repo root doubles as a plugin folder
   `manifest.__sourceDir` (PATH fallback).
 - Install: `omarchy plugin add <repo-url>` then
   `omarchy plugin enable scrimwiggins.terminal-theme-studio right`.
+
+## AI wallpaper generation (v1.2 spec)
+
+From any working palette — image-derived, library, or hand-edited — the
+**Wallpapers…** header button opens a dialog that generates matching
+desktop wallpapers.  An optional aesthetic field takes three or four
+words; when blank the vibe is **derived from the palette**
+(`fts.aesthetic.derive_aesthetic`: background luminance × mean accent
+saturation × hue-spread buckets, e.g. "rich saturated neon dusk, warm
+tones").  The prompt (`fts.aesthetic.build_prompt`) states the
+aesthetic, the strict palette with hex swatches (background/foreground +
+the four most vivid, hue-distinct accents), calm-center composition
+guidance, and a baked-in negative.
+
+### Providers (`fts/providers.py`)
+
+All return `GeneratedImage(bytes, mime, provider, prompt, meta)`, share
+the call shape `generate(prompt, *, aspect, count, reference)`, and take
+an injected transport (stdlib `urllib` by default — no new
+dependencies); all failures raise `ProviderError` with a
+user-presentable message.  The UI builds its dropdown from
+`providers.PROVIDERS` and instantiates via `providers.make_provider` —
+contributing a provider is one class plus those two registrations.
+
+- **`MfluxProvider`** (the default local provider) — the photoLiquidity
+  mflux bridge on the Mac mini M2 (LaunchAgent
+  `com.photoliquidity.mflux`, binds 0.0.0.0 for Tailnet reach):
+  `POST /generate` with `{prompt, width, height, steps, seed}` returns
+  base64 PNG in JSON (no file endpoint).  FLUX.2 Klein 4B is
+  step-distilled (1–4 steps, 2 is the measured sweet spot, ~20–35 s
+  warm) with no negative prompt and guidance pinned at 1.0; prompts
+  cap around 512 tokens.  Dimensions per aspect hold the ~720² pixel
+  budget snapped to multiples of 16 (16:9 → 960×544, 21:9 →
+  1104×464 …).  The bridge is single-process, so batches serialize;
+  its `/shutdown` route is shared infrastructure and is never called.
+  Endpoint: `FTS_MFLUX_URL` (default `http://100.72.41.118:4030`).
+- **`GeminiProvider`** — Gemini Interactions API
+  (`POST https://generativelanguage.googleapis.com/v1beta/interactions`,
+  `x-goog-api-key` header) with `gemini-3.1-flash-lite-image`
+  ("Nano Banana 2 Lite"), `response_format` fixed at
+  `{"type": "image", "aspect_ratio": …, "image_size": "1K"}` (~$0.034
+  per image).  Reference images (the palette's source image) go inline
+  as base64 `{"type": "image", …}` blocks; the image comes back base64
+  in `interaction.output_image.data` (steps/`model_output` blocks as
+  fallback).  Key: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
+  (`fts.paths.gemini_api_key`).
+- **`ComfyUIProvider`** (SDXL fallback backend, separate service from
+  the mflux bridge — never route Flux jobs there) — queues a minimal
+  txt2img API-format graph (CheckpointLoaderSimple → CLIPTextEncode×2 →
+  EmptyLatentImage → KSampler → VAEDecode → SaveImage) at
+  `POST /prompt`, polls `GET /history/<id>` for outputs/errors,
+  downloads bytes from `GET /view`.  Latent dims use SDXL's trained
+  buckets per aspect (16:9 → 1344×768, 21:9 → 1536×640 …).
+  `FTS_COMFYUI_URL` (default `http://100.72.41.118:8188`) and
+  `FTS_COMFYUI_CHECKPOINT` (default `sd_xl_base_1.0.safetensors`).
+- **`OpenAIImageProvider`** (bring your own endpoint) — any server
+  speaking the standard `POST <base>/images/generations` with
+  `{model, prompt, size, n}`; `b64_json` primary, `url` responses are
+  fetched.  `FTS_OPENAI_IMAGE_URL` (+ `FTS_OPENAI_IMAGE_MODEL`,
+  `FTS_OPENAI_IMAGE_SIZE`, `FTS_OPENAI_API_KEY`/`OPENAI_API_KEY`).
+- **`CustomCommandProvider`** (bring your own anything) — runs
+  `FTS_IMAGE_COMMAND` under `/bin/sh -c` with `{prompt}` (shell-quoted),
+  `{width}`, `{height}` substituted; stdout is the image, sniffed via
+  magic bytes.  The universal escape hatch: any CLI, API, or ssh
+  one-liner becomes a provider.
+
+### Omarchy integration (`fts/omarchy.py`)
+
+The default flow creates a **complete theme**: `save_user_theme` writes
+`~/.config/omarchy/themes/<slug>/colors.toml` first (so a mid-generation
+failure still leaves a valid, appliable theme), then each generated
+image lands as `<n>-<stem>.<ext>` in that theme's `backgrounds/` — the
+same shape Omarchy's own themes ship.  Finishing runs
+`omarchy-theme-set <slug>` (full desktop apply) and
+`omarchy-theme-bg-set <first wallpaper>` (live background).  The studio
+only ever writes its own user-theme directory and calls Omarchy's
+public scripts — it never touches `~/.local/state/omarchy/` itself.
+
+Opting out of theme creation saves to
+`~/.config/omarchy/backgrounds/<slug>/` instead — the per-theme *user*
+backgrounds folder that `omarchy-theme-set` merges into the theme's
+wallpaper rotation.
+
+### UI `WallpaperDialog` (`fts/ui/wallpaper_dialog.py`)
+
+- Aesthetic `Adw.EntryRow` with a live "auto-detected" caption;
+  provider/aspect `Adw.ComboRow`s; count `Adw.SpinRow` (1–4);
+  "let the source image guide the look" switch (Gemini + source image
+  only).
+- Theme-creation controls: new-theme-name entry + **Create a full
+  Omarchy theme** switch (default on, button relabels to
+  "Create Theme") + **Apply it when done** switch.
+- **Generate/Create Theme** runs the whole sequence on a worker thread
+  (colors.toml → wallpapers → apply → set background), per-image and
+  cancel-aware between images, marshalled back via `GLib.idle_add`;
+  spinner + progress status; results as thumbnail cards with per-image
+  **Set as Wallpaper**.  The created theme refreshes the library via
+  the `on_theme_created` callback.  Failures → toast /
+  `Adw.AlertDialog`, never raised into the main loop.

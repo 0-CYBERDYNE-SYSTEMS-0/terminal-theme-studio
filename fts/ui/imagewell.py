@@ -87,6 +87,7 @@ class ImageWell(Gtk.Box):
     def __init__(self, toast, **kwargs) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6, **kwargs)
         self._toast = toast
+        self._source_path: str | None = None
 
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.NONE)
@@ -120,6 +121,15 @@ class ImageWell(Gtk.Box):
     # ------------------------------------------------------------------
     # drag & drop + file chooser
     # ------------------------------------------------------------------
+
+    @property
+    def source_path(self) -> str | None:
+        """The file the current image (and palette) came from, if any.
+
+        The wallpaper dialog passes this to Gemini as a reference image;
+        None when no image has been loaded.
+        """
+        return self._source_path
 
     def _setup_dnd(self) -> None:
         file_target = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
@@ -213,6 +223,8 @@ class ImageWell(Gtk.Box):
             self._toast("Palette extraction failed")
             print(f"terminal-theme-studio: extraction failed: {exc}", flush=True)
             return
+
+        self._source_path = path
 
         try:
             thumb = GdkPixbuf.Pixbuf.new_from_file_at_scale(

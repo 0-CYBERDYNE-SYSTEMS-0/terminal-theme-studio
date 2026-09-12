@@ -1,15 +1,20 @@
-"""Color test generators: in-app text and a self-contained shell script.
+"""Color test generators: in-app text, a self-contained shell script, and
+the pixel layout for the GTK spectrum canvas.
 
-Both render the same battery: the 16 ANSI slots (as truecolor blocks taken
-from the working palette), the 6x6x6 cube, the 232-255 grayscale ramp, and
-a truecolor gradient.  Output is plain text with ANSI SGR escapes.
+The text helpers render the same battery: the 16 ANSI slots (as truecolor
+blocks taken from the working palette), the 6x6x6 cube, the 232-255
+grayscale ramp, and a truecolor gradient.  Output is plain text with ANSI
+SGR escapes.  :func:`spectrum_geom` sizes that same battery so the in-app
+canvas can shrink instead of overflowing a tiled window.
 """
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from .palette import Palette
 
-__all__ = ["full_test_text", "script_text"]
+__all__ = ["SpectrumGeom", "full_test_text", "script_text", "spectrum_geom"]
 
 _ANSI_NAMES = (
     "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
@@ -172,3 +177,92 @@ def script_text(p: Palette) -> str:
     out.append("printf '\\n'")
     out.append("")
     return "\n".join(out) + "\n"
+
+
+class SpectrumGeom(NamedTuple):
+    """Pixel layout for the in-app color-test canvas at a given width.
+
+    Every band (8-wide ANSI row, 36-wide cube row, gray ramp, gradient)
+    is guaranteed to fit inside ``avail``, which itself fits inside
+    ``width`` after left/right ``margin``.  ``ColorTestView`` draws with
+    these numbers so the dialog can shrink instead of overflowing.
+    """
+
+    width: float
+    height: float
+    margin: float
+    avail: float
+    ansi_cell_w: float
+    ansi_cell_h: float
+    ansi_gap: float
+    cube_cell: float
+    gray_h: float
+    grad_h: float
+    heading_h: float
+    heading_gap: float
+    section_gap: float
+    top: float
+
+    @property
+    def ansi_row_width(self) -> float:
+        return 8 * self.ansi_cell_w + 7 * self.ansi_gap
+
+    @property
+    def cube_row_width(self) -> float:
+        return 36 * self.cube_cell
+
+
+def spectrum_geom(width: float) -> SpectrumGeom:
+    """Compute a spectrum layout that never paints past ``width``.
+
+    Widths below 320px still produce a valid layout (cells just get
+    small); callers may size-request a larger minimum for usability.
+    """
+    width = max(1.0, float(width))
+    margin = 24.0 if width >= 520 else 12.0
+    avail = max(64.0, width - 2 * margin)
+    ansi_gap = 6.0 if avail >= 560 else 3.0
+    ansi_cell_w = (avail - 7 * ansi_gap) / 8.0
+    ansi_cell_h = 28.0 if ansi_cell_w >= 44 else 20.0
+    cube_cell = min(24.0, avail / 36.0)
+    gray_h = 20.0
+    grad_h = 22.0
+    heading_h = 20.0
+    heading_gap = 8.0
+    section_gap = 16.0
+    top = 22.0
+    height = (
+        top
+        + heading_h
+        + heading_gap
+        + 2 * (ansi_cell_h + ansi_gap)
+        + section_gap
+        + heading_h
+        + heading_gap
+        + 6 * cube_cell
+        + section_gap
+        + heading_h
+        + heading_gap
+        + gray_h
+        + section_gap
+        + heading_h
+        + heading_gap
+        + grad_h
+        + margin
+    )
+    return SpectrumGeom(
+        width=width,
+        height=height,
+        margin=margin,
+        avail=avail,
+        ansi_cell_w=ansi_cell_w,
+        ansi_cell_h=ansi_cell_h,
+        ansi_gap=ansi_gap,
+        cube_cell=cube_cell,
+        gray_h=gray_h,
+        grad_h=grad_h,
+        heading_h=heading_h,
+        heading_gap=heading_gap,
+        section_gap=section_gap,
+        top=top,
+    )
