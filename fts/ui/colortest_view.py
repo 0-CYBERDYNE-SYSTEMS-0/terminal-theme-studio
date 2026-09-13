@@ -21,7 +21,8 @@ from ..palette import hex_to_rgba  # noqa: E402
 
 __all__ = ["ColorTestView"]
 
-_MIN_WIDTH = 320
+# Preferred spectrum width for the initial height; never used as a minimum.
+_NATURAL_WIDTH = 640
 _FONT = "JetBrainsMono Nerd Font, monospace 10"
 
 
@@ -44,7 +45,11 @@ class ColorTestView(Gtk.DrawingArea):
         self._palette = None
         self.set_hexpand(True)
         self.set_vexpand(True)
-        self.set_size_request(_MIN_WIDTH, int(spectrum_geom(_MIN_WIDTH).height))
+        # No width request: a minimum here travels up through the pane and
+        # pushes the window wider than a narrow tile.  The spectrum flexes to
+        # whatever the pane gives it (spectrum_geom is safe at any width), so
+        # only a preferred height is advertised.
+        self.set_content_height(int(spectrum_geom(_NATURAL_WIDTH).height))
         self.set_draw_func(self._draw)
         self.connect("resize", self._on_resize)
 
@@ -53,7 +58,7 @@ class ColorTestView(Gtk.DrawingArea):
         self.queue_draw()
 
     def _on_resize(self, _da, width: int, _height: int) -> None:
-        needed = int(round(spectrum_geom(max(_MIN_WIDTH, width)).height))
+        needed = int(round(spectrum_geom(max(1, width)).height))
         if needed != self.get_content_height():
             self.set_content_height(needed)
 

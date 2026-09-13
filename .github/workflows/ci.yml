@@ -54,3 +54,20 @@ jobs:
           json.loads(exporters.render("json", p, "CI"))
           print("renderers OK")
           EOF
+
+  layout-budgets:
+    # A hard minimum anywhere in the widget tree pushes the window wider than a
+    # narrow tiled pane. Measure the real tree so it cannot come back.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK4, libadwaita and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb
+
+      - name: Layout budgets (narrow panes)
+        env:
+          FTS_UI_MEASURE: "1"
+        run: xvfb-run -a python3 -m unittest discover -s tests -p 'test_ui_measure.py' -v

@@ -172,9 +172,10 @@ class SwatchPanel(Gtk.Box):
             flow = Gtk.FlowBox()
             flow.set_selection_mode(Gtk.SelectionMode.NONE)
             flow.set_homogeneous(True)
-            # wrap instead of overflowing: 8 columns when wide, down to 4
-            # when the pane is narrow (max keeps the row count bounded)
-            flow.set_min_children_per_line(4)
+            # Wrap instead of overflowing: up to 8 columns when wide, down to
+            # a single column in a narrow tile.  A minimum of 4 made the query
+            # pane refuse to shrink below ~432px and clip in narrow panes.
+            flow.set_min_children_per_line(1)
             flow.set_max_children_per_line(8)
             flow.set_column_spacing(8)
             flow.set_row_spacing(8)

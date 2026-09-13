@@ -42,7 +42,8 @@ bin/
 ## Run
 
 ```sh
-python3 -m unittest discover -s tests   # 169 tests, no display needed
+python3 -m unittest discover -s tests   # 178 tests, no display needed
+FTS_UI_MEASURE=1 xvfb-run -a python3 -m unittest discover -s tests -p 'test_ui_measure.py'
 bin/terminal-theme-studio                   # GTK UI (or: python3 -m fts.main)
 ```
 
@@ -169,6 +170,12 @@ plugin folder passes `omarchy plugin validate` on its own.
 Tests never touch real user config: they redirect everything with
 `FOOT_THEME_STUDIO_HOME` / `OMARCHY_PATH` to a temp dir, and
 `omarchy-theme-set` is only ever exercised via a mocked subprocess.
+
+The layout budgets in `tests/test_ui_measure.py` measure the real GTK widget
+tree (window 400px floor, swatch grid collapses to one column, library 180px,
+spectrum flexes to any width). They need GTK plus a display, so they are
+opt-in with `FTS_UI_MEASURE=1`; CI runs them under `xvfb-run`, and a hard
+minimum that would push the window off a narrow tiled pane fails the build.
 
 ## Dependencies, privacy & security
 
