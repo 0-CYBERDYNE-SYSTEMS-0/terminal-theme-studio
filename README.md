@@ -47,8 +47,8 @@ FTS_UI_MEASURE=1 xvfb-run -a python3 -m unittest discover -s tests -p 'test_ui_m
 bin/terminal-theme-studio                   # GTK UI (or: python3 -m fts.main)
 ```
 
-Requires Python 3.14 with PyGObject (GTK 4 + Adw + GdkPixbuf) at UI time;
-the core modules above import without `gi`/display.
+Requires Python 3.12+ with PyGObject (GTK 4, libadwaita 1.7+, GdkPixbuf) at
+UI time; the core modules above import without `gi`/display.
 
 ## How applying works
 
@@ -179,10 +179,11 @@ minimum that would push the window off a narrow tiled pane fails the build.
 
 ## Dependencies, privacy & security
 
-- **Runtime deps:** Python 3.14 with PyGObject (GTK 4 + Adw +
-  GdkPixbuf), an Omarchy install for the apply paths, and Omarchy's own
-  public scripts (`omarchy-theme-set`, `omarchy-theme-bg-set`). No
-  third-party Python packages; all HTTP is stdlib `urllib`.
+- **Runtime deps:** Python 3.12+ with PyGObject (GTK 4, **libadwaita
+  1.7+** — the toolbar uses `Adw.WrapBox`, plus GdkPixbuf), an Omarchy
+  install for the apply paths, and Omarchy's own public scripts
+  (`omarchy-theme-set`, `omarchy-theme-bg-set`). No third-party Python
+  packages; all HTTP is stdlib `urllib`.
 - **Network:** the studio is offline until *you* press Generate.
   Requests go only to the image endpoint you selected — your local
   bridge/server, or a cloud API with your own key.
