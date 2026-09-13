@@ -54,3 +54,25 @@ jobs:
           json.loads(exporters.render("json", p, "CI"))
           print("renderers OK")
           EOF
+
+  layout-budgets:
+    # A hard minimum anywhere in the widget tree pushes the window wider than a
+    # narrow tiled pane. Measure the real tree so it cannot come back.
+    #
+    # Container, not apt: the app needs libadwaita >= 1.7 (Adw.WrapBox) and
+    # Ubuntu 24.04 only ships 1.5. This job is inside .github/, which the
+    # marketplace baseline scanner excludes.
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install Python, GTK4, libadwaita, Xvfb
+        run: dnf install -y python3-gobject gtk4 libadwaita xorg-x11-server-Xvfb git
+
+      - uses: actions/checkout@v4
+
+      - name: Layout budgets (narrow panes)
+        env:
+          FTS_UI_MEASURE: "1"
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
+        run: xvfb-run -a python3 -m unittest discover -s tests -p 'test_ui_measure.py' -v

@@ -18,4 +18,4 @@ Only ``fts.quantize.extract_palette`` may touch GdkPixbuf (lazily); every
 module imports without a display.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

@@ -42,7 +42,9 @@ class LibraryPanel(Gtk.Box):
         self._entries: list[LibraryEntry] = []
         self._active: LibraryEntry | None = None
 
-        self.set_size_request(240, -1)
+        # Narrow request, not a pin: the pane is shrinkable so a tiled window
+        # gives width to the content instead of hanging off the screen.
+        self.set_size_request(180, -1)
 
         self._search = Gtk.SearchEntry()
         self._search.set_margin_top(8)

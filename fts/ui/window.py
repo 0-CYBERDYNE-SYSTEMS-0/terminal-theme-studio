@@ -66,7 +66,10 @@ class FtsWindow(Adw.ApplicationWindow):
 
         self.set_title("Terminal Theme Studio")
         self.set_default_size(1280, 800)  # >= 1200x760
-        self.set_size_request(640, 480)  # tiled-half and wrap-bar still work
+        # Floor for tiny tiles; the content can lay out at this width (swatches
+        # wrap to one column, the library shrinks, the spectrum flexes).  A
+        # larger floor is what pushed the window off the edge of a narrow tile.
+        self.set_size_request(400, 420)
 
         # ---- panels (created first; header buttons reference them) ----
         self._library = LibraryPanel()
@@ -178,13 +181,15 @@ class FtsWindow(Adw.ApplicationWindow):
         self._vpaned.set_start_child(top_scroll)
         self._vpaned.set_end_child(self._preview)
         self._vpaned.set_shrink_start_child(True)
-        self._vpaned.set_shrink_end_child(False)
+        self._vpaned.set_shrink_end_child(True)
         self._vpaned.set_position(300)  # refined on map; preview gets ~60%
 
         self._hpaned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self._hpaned.set_start_child(self._library)
         self._hpaned.set_end_child(self._vpaned)
-        self._hpaned.set_shrink_start_child(False)
+        # Both panes may yield: the library no longer pins the split and the
+        # wrappable content on the right compresses instead of clipping.
+        self._hpaned.set_shrink_start_child(True)
         self._hpaned.set_shrink_end_child(True)
         self._hpaned.set_position(280)  # refined on map
 
@@ -413,5 +418,5 @@ class FtsWindow(Adw.ApplicationWindow):
         self._positioned = True
         width = self.get_width() or 1280
         height = self.get_height() or 800
-        self._hpaned.set_position(max(240, min(380, int(width * 0.24))))
+        self._hpaned.set_position(max(180, min(380, int(width * 0.24))))
         self._vpaned.set_position(int(height * 0.40))

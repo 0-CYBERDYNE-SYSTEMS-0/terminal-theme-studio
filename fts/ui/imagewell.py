@@ -105,7 +105,7 @@ class ImageWell(Gtk.Box):
         self.append(frame)
 
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        hint = Gtk.Label(label="Image → 16-color palette", xalign=0.0)
+        hint = Gtk.Label(label="Image → 16-color palette", xalign=0.0, wrap=True)
         hint.add_css_class("caption")
         hint.add_css_class("dim-label")
         hint.set_hexpand(True)

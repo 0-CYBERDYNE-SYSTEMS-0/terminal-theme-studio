@@ -115,6 +115,12 @@ Layout:
   color test is a bottom sheet inside the parent (never a separate tiled
   window), scales to the sheet width, and closes on click-outside, Close,
   or Escape.
+- **Narrow panes.** The window floor is 400px and every pane can reach it
+  without clipping: the library pane shrinks (180px request, shrinkable
+  split), the swatch grid collapses from 8 columns down to one, the image
+  well hint wraps, and the color-test spectrum flexes to whatever width it
+  is given (`spectrum_geom` is safe from 1px up). `tests/test_ui_measure.py`
+  measures the widget tree and fails the build if a hard minimum comes back.
 
 ## Color test
 

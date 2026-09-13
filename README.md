@@ -42,12 +42,13 @@ bin/
 ## Run
 
 ```sh
-python3 -m unittest discover -s tests   # 169 tests, no display needed
+python3 -m unittest discover -s tests   # 178 tests, no display needed
+FTS_UI_MEASURE=1 xvfb-run -a python3 -m unittest discover -s tests -p 'test_ui_measure.py'
 bin/terminal-theme-studio                   # GTK UI (or: python3 -m fts.main)
 ```
 
-Requires Python 3.14 with PyGObject (GTK 4 + Adw + GdkPixbuf) at UI time;
-the core modules above import without `gi`/display.
+Requires Python 3.12+ with PyGObject (GTK 4, libadwaita 1.7+, GdkPixbuf) at
+UI time; the core modules above import without `gi`/display.
 
 ## How applying works
 
@@ -170,12 +171,19 @@ Tests never touch real user config: they redirect everything with
 `FOOT_THEME_STUDIO_HOME` / `OMARCHY_PATH` to a temp dir, and
 `omarchy-theme-set` is only ever exercised via a mocked subprocess.
 
+The layout budgets in `tests/test_ui_measure.py` measure the real GTK widget
+tree (window 400px floor, swatch grid collapses to one column, library 180px,
+spectrum flexes to any width). They need GTK plus a display, so they are
+opt-in with `FTS_UI_MEASURE=1`; CI runs them under `xvfb-run`, and a hard
+minimum that would push the window off a narrow tiled pane fails the build.
+
 ## Dependencies, privacy & security
 
-- **Runtime deps:** Python 3.14 with PyGObject (GTK 4 + Adw +
-  GdkPixbuf), an Omarchy install for the apply paths, and Omarchy's own
-  public scripts (`omarchy-theme-set`, `omarchy-theme-bg-set`). No
-  third-party Python packages; all HTTP is stdlib `urllib`.
+- **Runtime deps:** Python 3.12+ with PyGObject (GTK 4, **libadwaita
+  1.7+** — the toolbar uses `Adw.WrapBox`, plus GdkPixbuf), an Omarchy
+  install for the apply paths, and Omarchy's own public scripts
+  (`omarchy-theme-set`, `omarchy-theme-bg-set`). No third-party Python
+  packages; all HTTP is stdlib `urllib`.
 - **Network:** the studio is offline until *you* press Generate.
   Requests go only to the image endpoint you selected — your local
   bridge/server, or a cloud API with your own key.
